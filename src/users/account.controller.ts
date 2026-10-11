@@ -29,10 +29,27 @@ export class AccountController {
     return this.usersService.getAccountProfile(userId);
   }
 
+  @Get('profile')
+  @ApiOperation({ summary: 'Get current user profile alias (Admin & Staff)' })
+  @ApiResponse({ status: 200, description: 'Profile returned successfully' })
+  async getProfileAlias(@CurrentUser('id') userId: string) {
+    return this.usersService.getAccountProfile(userId);
+  }
+
   @Patch('me')
   @ApiOperation({ summary: 'Update own profile information (Admin & Staff)' })
   @ApiResponse({ status: 200, description: 'Profile updated successfully' })
   async updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateAccountDto,
+  ) {
+    return this.usersService.updateAccountProfile(userId, dto);
+  }
+
+  @Patch('profile')
+  @ApiOperation({ summary: 'Update own profile information alias (Admin & Staff)' })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  async updateProfileAlias(
     @CurrentUser('id') userId: string,
     @Body() dto: UpdateAccountDto,
   ) {
