@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { DropRequest, DropRequestStatus } from './entities/drop-request.entity.js';
 import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment.entity.js';
+import { Payment, PaymentStatus } from '../payments/entities/payment.entity.js';
 import { Student } from '../students/entities/student.entity.js';
 import { QueryDropRequestDto, ReviewDropRequestDto } from './dto/drop-request.dto.js';
 
@@ -105,9 +106,36 @@ export class DropRequestsService {
 
       await queryRunner.manager.save(DropRequest, dropRequest);
 
-      // Update enrollment status to DROPPED
+      // Update enrollment status to DROPPED and automatically clear any remaining course due to 0
       const enrollment = dropRequest.enrollment;
       enrollment.status = EnrollmentStatus.DROPPED;
+
+      // Find payments already collected for this enrollment
+      const payments = await queryRunner.manager.find(Payment, {
+        where: { enrollmentId: enrollment.id, status: PaymentStatus.COMPLETED },
+      });
+      let totalPaidForEnrollment = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+      // If no payments were directly tagged with enrollmentId, check if student has only this enrollment
+      if (totalPaidForEnrollment === 0) {
+        const studentEnrollments = await queryRunner.manager.find(Enrollment, {
+          where: { studentId: enrollment.studentId },
+        });
+        if (studentEnrollments.length === 1) {
+          const allStudentPayments = await queryRunner.manager.find(Payment, {
+            where: { studentId: enrollment.studentId, status: PaymentStatus.COMPLETED },
+          });
+          totalPaidForEnrollment = allStudentPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        }
+      }
+
+      // Automatically reduce finalFee to amount already collected so remaining due is 0
+      enrollment.finalFee = Math.min(Number(enrollment.finalFee), totalPaidForEnrollment);
+      enrollment.discount = Math.max(0, Number(enrollment.agreedFee) - enrollment.finalFee);
+      enrollment.notes = enrollment.notes
+        ? `${enrollment.notes} | Course drop approved; remaining due waived to 0`
+        : 'Course drop approved; remaining due waived to 0';
+
       await queryRunner.manager.save(Enrollment, enrollment);
 
       await queryRunner.commitTransaction();

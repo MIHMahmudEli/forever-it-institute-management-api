@@ -110,10 +110,16 @@ export class StudentsService {
 
     // Map summary financials for each student
     const data = items.map((student) => {
-      const totalPayable = (student.enrollments || []).reduce(
-        (sum, e) => sum + (e.status !== 'CANCELLED' ? Number(e.finalFee) : 0),
-        0
-      );
+      const totalPayable = (student.enrollments || []).reduce((sum, e) => {
+        if (e.status === 'CANCELLED') return sum;
+        if (e.status === 'DROPPED') {
+          const paidForE = (student.payments || [])
+            .filter((p) => p.enrollmentId === e.id && p.status === 'COMPLETED')
+            .reduce((s, p) => s + Number(p.amount), 0);
+          return sum + Math.min(Number(e.finalFee), paidForE);
+        }
+        return sum + Number(e.finalFee);
+      }, 0);
       const totalPaid = (student.payments || []).reduce(
         (sum, p) => sum + (p.status === 'COMPLETED' ? Number(p.amount) : 0),
         0
@@ -151,10 +157,16 @@ export class StudentsService {
       throw new NotFoundException(`Student with ID ${id} not found.`);
     }
 
-    const totalPayable = (student.enrollments || []).reduce(
-      (sum, e) => sum + (e.status !== 'CANCELLED' ? Number(e.finalFee) : 0),
-      0
-    );
+    const totalPayable = (student.enrollments || []).reduce((sum, e) => {
+      if (e.status === 'CANCELLED') return sum;
+      if (e.status === 'DROPPED') {
+        const paidForE = (student.payments || [])
+          .filter((p) => p.enrollmentId === e.id && p.status === 'COMPLETED')
+          .reduce((s, p) => s + Number(p.amount), 0);
+        return sum + Math.min(Number(e.finalFee), paidForE);
+      }
+      return sum + Number(e.finalFee);
+    }, 0);
     const totalPaid = (student.payments || []).reduce(
       (sum, p) => sum + (p.status === 'COMPLETED' ? Number(p.amount) : 0),
       0

@@ -149,10 +149,16 @@ export class StudentPortalService {
     const completedEnrollments = enrollments.filter((e) => e.status === EnrollmentStatus.COMPLETED);
     const droppedEnrollments = enrollments.filter((e) => e.status === EnrollmentStatus.DROPPED);
 
-    const totalPayable = enrollments.reduce(
-      (sum, e) => sum + (e.status !== EnrollmentStatus.CANCELLED ? Number(e.finalFee) : 0),
-      0,
-    );
+    const totalPayable = enrollments.reduce((sum, e) => {
+      if (e.status === EnrollmentStatus.CANCELLED) return sum;
+      if (e.status === EnrollmentStatus.DROPPED) {
+        const paidForE = payments
+          .filter((p) => p.enrollmentId === e.id && p.status === 'COMPLETED')
+          .reduce((s, p) => s + Number(p.amount), 0);
+        return sum + Math.min(Number(e.finalFee), paidForE);
+      }
+      return sum + Number(e.finalFee);
+    }, 0);
     const totalPaid = payments.reduce(
       (sum, p) => sum + (p.status === 'COMPLETED' ? Number(p.amount) : 0),
       0,
@@ -220,7 +226,8 @@ export class StudentPortalService {
         (sum, p) => sum + (p.status === 'COMPLETED' ? Number(p.amount) : 0),
         0,
       );
-      const dueForCourse = Math.max(0, Number(e.finalFee) - paidForCourse);
+      const isDropped = e.status === EnrollmentStatus.DROPPED || e.status === EnrollmentStatus.CANCELLED;
+      const dueForCourse = isDropped ? 0 : Math.max(0, Number(e.finalFee) - paidForCourse);
 
       return {
         ...e,
@@ -252,7 +259,8 @@ export class StudentPortalService {
       (sum, p) => sum + (p.status === 'COMPLETED' ? Number(p.amount) : 0),
       0,
     );
-    const dueForCourse = Math.max(0, Number(enrollment.finalFee) - paidForCourse);
+    const isDropped = enrollment.status === EnrollmentStatus.DROPPED || enrollment.status === EnrollmentStatus.CANCELLED;
+    const dueForCourse = isDropped ? 0 : Math.max(0, Number(enrollment.finalFee) - paidForCourse);
 
     return {
       ...enrollment,
