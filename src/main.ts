@@ -12,6 +12,19 @@ async function bootstrap() {
   const apiPrefix = process.env.API_PREFIX || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
+  // Root endpoint handler for domain root health checks and browsers
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/', (_req, res) => {
+    res.json({
+      name: 'Forever IT Institute Management API',
+      version: '1.0.0',
+      status: 'online',
+      message: 'Forever IT Institute API is running. API endpoints are located under /api/v1 and documentation at /api/docs',
+      documentation: '/api/docs',
+      apiBase: `/${apiPrefix}`,
+    });
+  });
+
   // Global Exception Filter
   app.useGlobalFilters(new HttpExceptionFilter());
 
