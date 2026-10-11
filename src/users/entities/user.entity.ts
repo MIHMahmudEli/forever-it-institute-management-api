@@ -17,13 +17,13 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   email: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   passwordHash: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   fullName: string;
 
   @Column({
@@ -33,7 +33,7 @@ export class User {
   })
   role: UserRole;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
   @CreateDateColumn({ type: 'timestamp with time zone' })

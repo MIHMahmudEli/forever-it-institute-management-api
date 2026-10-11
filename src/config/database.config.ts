@@ -5,6 +5,7 @@ import { Course } from '../courses/entities/course.entity.js';
 import { Enrollment } from '../enrollments/entities/enrollment.entity.js';
 import { Payment } from '../payments/entities/payment.entity.js';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity.js';
+import { InitialSchema1710000000000 } from '../database/migrations/1710000000000-InitialSchema.js';
 
 export class DatabaseConfigurationError extends Error {
   constructor(message: string) {
@@ -31,11 +32,11 @@ export interface ResolvedDatabaseConfig {
  */
 export function resolveSslConfig(env: Record<string, string | undefined>): boolean | { rejectUnauthorized: boolean } {
   const dbSsl = env.DB_SSL?.trim().toLowerCase();
-  const rejectUnauthorized = env.DB_SSL_REJECT_UNAUTHORIZED?.trim().toLowerCase() !== 'false';
+  const explicitReject = env.DB_SSL_REJECT_UNAUTHORIZED?.trim().toLowerCase();
 
   // Explicit true
   if (dbSsl === 'true' || dbSsl === '1') {
-    return { rejectUnauthorized };
+    return { rejectUnauthorized: explicitReject === 'false' ? false : true };
   }
 
   // Explicit false
@@ -45,17 +46,29 @@ export function resolveSslConfig(env: Record<string, string | undefined>): boole
 
   // Auto mode (default)
   const databaseUrl = env.DATABASE_URL?.trim() || '';
-  const isSupabase = databaseUrl.includes('supabase.co') || (env.DB_HOST?.includes('supabase.co') ?? false);
-  const isUrlSslRequired = databaseUrl.includes('sslmode=require') || databaseUrl.includes('sslmode=verify-full');
+  const isSupabase =
+    databaseUrl.includes('supabase.co') ||
+    databaseUrl.includes('supabase.com') ||
+    (env.DB_HOST?.includes('supabase.') ?? false);
+  const isUrlSslRequired =
+    databaseUrl.includes('sslmode=require') ||
+    databaseUrl.includes('sslmode=verify-full') ||
+    databaseUrl.includes('sslmode=no-verify');
   const isProduction = env.NODE_ENV === 'production';
 
-  if (isSupabase || isUrlSslRequired) {
-    return { rejectUnauthorized };
+  if (isSupabase) {
+    // Supabase poolers use internal certificate chains; default rejectUnauthorized to false unless explicitly set to 'true'
+    const reject = explicitReject === 'true';
+    return { rejectUnauthorized: reject };
   }
 
-  // For production non-local databases
-  if (isProduction && (env.DB_HOST && env.DB_HOST !== 'localhost' && env.DB_HOST !== '127.0.0.1')) {
-    return { rejectUnauthorized };
+  if (isUrlSslRequired) {
+    return { rejectUnauthorized: explicitReject === 'false' ? false : true };
+  }
+
+  // For production non-local databases (e.g. cPanel with SSL enabled)
+  if (isProduction && env.DB_HOST && env.DB_HOST !== 'localhost' && env.DB_HOST !== '127.0.0.1') {
+    return { rejectUnauthorized: explicitReject === 'false' ? false : true };
   }
 
   return false;
@@ -92,7 +105,7 @@ export function getDatabaseConfig(env: Record<string, string | undefined> = proc
       synchronize,
       logging,
       entities,
-      migrations: ['dist/src/database/migrations/*.js'],
+      migrations: [InitialSchema1710000000000],
     } as DataSourceOptions;
   }
 
@@ -128,6 +141,6 @@ export function getDatabaseConfig(env: Record<string, string | undefined> = proc
     synchronize,
     logging,
     entities,
-    migrations: ['dist/src/database/migrations/*.js'],
+    migrations: [InitialSchema1710000000000],
   } as DataSourceOptions;
 }

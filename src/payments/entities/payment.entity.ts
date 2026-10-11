@@ -7,6 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  type Relation,
 } from 'typeorm';
 import { Student } from '../../students/entities/student.entity.js';
 import { Enrollment } from '../../enrollments/entities/enrollment.entity.js';
@@ -32,15 +33,15 @@ export class Payment {
   id: string;
 
   @Index({ unique: true })
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   receiptNumber: string;
 
   @Index()
-  @Column()
+  @Column({ type: 'uuid' })
   studentId: string;
 
   @Index()
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   enrollmentId: string | null;
 
   @Column({ type: 'numeric', precision: 12, scale: 2 })
@@ -56,7 +57,7 @@ export class Payment {
   })
   paymentMethod: PaymentMethod;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   transactionReference: string | null;
 
   @Column({
@@ -69,13 +70,13 @@ export class Payment {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   receivedBy: string | null;
 
   @Column({ type: 'text', nullable: true })
   reversalReason: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   reversedBy: string | null;
 
   @Column({ type: 'timestamp with time zone', nullable: true })
@@ -83,11 +84,11 @@ export class Payment {
 
   @ManyToOne(() => Student, (student) => student.payments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'studentId' })
-  student: Student;
+  student: Relation<Student>;
 
   @ManyToOne(() => Enrollment, (enrollment) => enrollment.payments, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'enrollmentId' })
-  enrollment: Enrollment | null;
+  enrollment: Relation<Enrollment> | null;
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;

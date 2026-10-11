@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
-import { AppDataSource } from '../data-source.js';
+import AppDataSource from '../data-source.js';
 import { User, UserRole } from '../../users/entities/user.entity.js';
 import { Course, CourseStatus } from '../../courses/entities/course.entity.js';
 import { Student, StudentStatus } from '../../students/entities/student.entity.js';

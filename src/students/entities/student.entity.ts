@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
   Index,
+  type Relation,
 } from 'typeorm';
 import { Enrollment } from '../../enrollments/entities/enrollment.entity.js';
 import { Payment } from '../../payments/entities/payment.entity.js';
@@ -23,28 +24,28 @@ export class Student {
   id: string;
 
   @Index({ unique: true })
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   registrationNumber: string;
 
   @Index()
-  @Column()
+  @Column({ type: 'varchar' })
   fullName: string;
 
   @Index()
-  @Column()
+  @Column({ type: 'varchar' })
   nidOrBirthCertificateNumber: string;
 
   @Column({ type: 'text' })
   presentAddress: string;
 
   @Index()
-  @Column()
+  @Column({ type: 'varchar' })
   mobileNumber: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   parentName: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   parentMobileNumber: string;
 
   @Column({
@@ -54,20 +55,20 @@ export class Student {
   })
   status: StudentStatus;
 
-  @Column({ default: false })
+  @Column({ type: 'boolean', default: false })
   isArchived: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   createdBy: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   updatedBy: string;
 
   @OneToMany(() => Enrollment, (enrollment) => enrollment.student)
-  enrollments: Enrollment[];
+  enrollments: Relation<Enrollment>[];
 
   @OneToMany(() => Payment, (payment) => payment.student)
-  payments: Payment[];
+  payments: Relation<Payment>[];
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;

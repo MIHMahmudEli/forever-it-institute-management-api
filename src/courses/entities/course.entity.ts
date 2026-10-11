@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  type Relation,
 } from 'typeorm';
 import { Enrollment } from '../../enrollments/entities/enrollment.entity.js';
 
@@ -19,19 +20,19 @@ export class Course {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   code: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   name: string;
 
-  @Column({ default: 'General' })
+  @Column({ type: 'varchar', default: 'General' })
   category: string;
 
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ default: '3 Months' })
+  @Column({ type: 'varchar', default: '3 Months' })
   duration: string;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
@@ -45,7 +46,7 @@ export class Course {
   status: CourseStatus;
 
   @OneToMany(() => Enrollment, (enrollment) => enrollment.course)
-  enrollments: Enrollment[];
+  enrollments: Relation<Enrollment>[];
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;

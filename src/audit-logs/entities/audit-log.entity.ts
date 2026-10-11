@@ -12,24 +12,24 @@ export class AuditLog {
   id: string;
 
   @Index()
-  @Column()
+  @Column({ type: 'varchar' })
   action: string;
 
   @Index()
-  @Column()
+  @Column({ type: 'varchar' })
   entityType: string;
 
   @Index()
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   entityId: string | null;
 
-  @Column()
+  @Column({ type: 'varchar' })
   performedBy: string;
 
   @Column({ type: 'jsonb', nullable: true })
   details: Record<string, any> | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   ipAddress: string | null;
 
   @CreateDateColumn({ type: 'timestamp with time zone' })

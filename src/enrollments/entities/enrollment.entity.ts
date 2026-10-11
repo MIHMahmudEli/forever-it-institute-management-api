@@ -8,6 +8,7 @@ import {
   OneToMany,
   JoinColumn,
   Index,
+  type Relation,
 } from 'typeorm';
 import { Student } from '../../students/entities/student.entity.js';
 import { Course } from '../../courses/entities/course.entity.js';
@@ -26,11 +27,11 @@ export class Enrollment {
   id: string;
 
   @Index()
-  @Column()
+  @Column({ type: 'uuid' })
   studentId: string;
 
   @Index()
-  @Column()
+  @Column({ type: 'uuid' })
   courseId: string;
 
   @Column({ type: 'date', default: () => 'CURRENT_DATE' })
@@ -57,14 +58,14 @@ export class Enrollment {
 
   @ManyToOne(() => Student, (student) => student.enrollments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'studentId' })
-  student: Student;
+  student: Relation<Student>;
 
   @ManyToOne(() => Course, (course) => course.enrollments, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'courseId' })
-  course: Course;
+  course: Relation<Course>;
 
   @OneToMany(() => Payment, (payment) => payment.enrollment)
-  payments: Payment[];
+  payments: Relation<Payment>[];
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;
