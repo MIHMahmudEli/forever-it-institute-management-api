@@ -41,4 +41,56 @@ describe('Financial Calculations and Balance Invariants', () => {
 
     expect(outstandingDue).toBe(0);
   });
+
+  it('rejects recording payment when Total Payable Fee and Total Paid to Date are equal (due is 0)', () => {
+    const totalPayable = 15000;
+    const totalPaid = 15000;
+    const outstandingDue = Math.max(0, totalPayable - totalPaid);
+
+    const isFullyPaid = totalPayable > 0 && totalPaid >= totalPayable;
+    expect(isFullyPaid).toBe(true);
+    expect(outstandingDue).toBe(0);
+
+    // Rule: Attempting to record payment when already fully paid must throw error
+    const validatePayment = (amount: number) => {
+      if (totalPaid >= totalPayable) {
+        throw new Error('Total Payable Fee and Total Paid to Date are equal. No outstanding due exists.');
+      }
+    };
+
+    expect(() => validatePayment(1000)).toThrowError(/equal/);
+  });
+
+  it('rejects payment amount that exceeds remaining outstanding due (Total Paid <= Total Payable Fee)', () => {
+    const totalPayable = 20000;
+    const totalPaid = 15000;
+    const outstandingDue = Math.max(0, totalPayable - totalPaid); // 5000
+
+    const validatePayment = (amount: number) => {
+      if (amount > outstandingDue) {
+        throw new Error(`Payment amount of ${amount} exceeds remaining outstanding due of ${outstandingDue}`);
+      }
+    };
+
+    expect(() => validatePayment(5000)).not.toThrow();
+    expect(() => validatePayment(5001)).toThrowError(/exceeds remaining outstanding due/);
+    expect(() => validatePayment(10000)).toThrowError(/exceeds remaining outstanding due/);
+  });
+
+  it('rejects course-level payment when course is dropped, cancelled, or amount exceeds course balance', () => {
+    const courseFee = 10000;
+    const coursePaid = 7000;
+    const courseDue = courseFee - coursePaid; // 3000
+
+    const validateCoursePayment = (status: string, amount: number) => {
+      if (status === 'DROPPED') throw new Error('Cannot record payment for a DROPPED course');
+      if (status === 'CANCELLED') throw new Error('Cannot record payment for a CANCELLED course');
+      if (amount > courseDue) throw new Error('Payment amount exceeds remaining course due');
+    };
+
+    expect(() => validateCoursePayment('DROPPED', 500)).toThrow(/DROPPED/);
+    expect(() => validateCoursePayment('CANCELLED', 500)).toThrow(/CANCELLED/);
+    expect(() => validateCoursePayment('ACTIVE', 3500)).toThrow(/exceeds/);
+    expect(() => validateCoursePayment('ACTIVE', 3000)).not.toThrow();
+  });
 });

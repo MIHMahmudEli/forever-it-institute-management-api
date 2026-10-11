@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity.js';
 import { Student } from '../students/entities/student.entity.js';
-import { Enrollment } from '../enrollments/entities/enrollment.entity.js';
+import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment.entity.js';
 import { CreatePaymentDto, ReversePaymentDto, QueryPaymentDto } from './dto/create-payment.dto.js';
 import { numberToWordsBDT } from '../common/utils/amount-in-words.util.js';
 import { UserRole } from '../users/entities/user.entity.js';
@@ -48,24 +48,90 @@ export class PaymentsService {
   async create(createPaymentDto: CreatePaymentDto, receivedBy?: string) {
     const student = await this.studentRepository.findOne({
       where: { id: createPaymentDto.studentId, isArchived: false },
+      relations: { enrollments: { course: true }, payments: true },
     });
     if (!student) {
       throw new NotFoundException(`Student with ID ${createPaymentDto.studentId} not found.`);
     }
 
+    const amount = Number(createPaymentDto.amount);
+    if (isNaN(amount) || amount <= 0) {
+      throw new BadRequestException('Payment amount must be greater than zero.');
+    }
+
+    // 1. Calculate overall student totals
+    const totalPayable = (student.enrollments || []).reduce((sum, e) => {
+      if (e.status === EnrollmentStatus.CANCELLED) return sum;
+      if (e.status === EnrollmentStatus.DROPPED) {
+        const paidForE = (student.payments || [])
+          .filter((p) => p.enrollmentId === e.id && p.status === PaymentStatus.COMPLETED)
+          .reduce((s, p) => s + Number(p.amount), 0);
+        return sum + Math.min(Number(e.finalFee), paidForE);
+      }
+      return sum + Number(e.finalFee);
+    }, 0);
+
+    const totalPaid = (student.payments || [])
+      .reduce((sum, p) => sum + (p.status === PaymentStatus.COMPLETED ? Number(p.amount) : 0), 0);
+
+    const outstandingDue = Math.max(0, totalPayable - totalPaid);
+
+    if (totalPayable > 0 && totalPaid >= totalPayable) {
+      throw new BadRequestException(
+        `Total Payable Fee (৳${totalPayable.toLocaleString()}) and Total Paid to Date (৳${totalPaid.toLocaleString()}) are equal. There is no outstanding due remaining for this student.`
+      );
+    }
+
+    if (totalPayable === 0 && (student.enrollments || []).length === 0) {
+      throw new BadRequestException('Student has no enrolled courses with payable fees.');
+    }
+
+    if (amount > outstandingDue) {
+      throw new BadRequestException(
+        `Payment amount of ৳${amount.toLocaleString()} exceeds the remaining outstanding due (৳${outstandingDue.toLocaleString()}). Total Paid to Date cannot exceed Total Payable Fee.`
+      );
+    }
+
     let enrollment: Enrollment | null = null;
     if (createPaymentDto.enrollmentId) {
-      enrollment = await this.enrollmentRepository.findOne({
+      const selectedEnrollment = await this.enrollmentRepository.findOne({
         where: { id: createPaymentDto.enrollmentId, studentId: student.id },
         relations: { course: true },
       });
-      if (!enrollment) {
+      if (!selectedEnrollment) {
         throw new NotFoundException(`Enrollment with ID ${createPaymentDto.enrollmentId} not found for this student.`);
       }
+
+      if (selectedEnrollment.status === EnrollmentStatus.CANCELLED) {
+        throw new BadRequestException('Cannot record payment for a CANCELLED course enrollment.');
+      }
+      if (selectedEnrollment.status === EnrollmentStatus.DROPPED) {
+        throw new BadRequestException('Cannot record payment for a DROPPED course. Dropped courses have no remaining due.');
+      }
+
+      const courseFee = Number(selectedEnrollment.finalFee);
+      const enrollmentId = selectedEnrollment.id;
+      const coursePaid = (student.payments || [])
+        .filter((p) => p.enrollmentId === enrollmentId && p.status === PaymentStatus.COMPLETED)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+      const courseDue = Math.max(0, courseFee - coursePaid);
+
+      if (coursePaid >= courseFee) {
+        throw new BadRequestException(
+          `The selected course "${selectedEnrollment.course?.name || 'Course'}" is already fully paid (৳${coursePaid.toLocaleString()} of ৳${courseFee.toLocaleString()}).`
+        );
+      }
+
+      if (amount > courseDue) {
+        throw new BadRequestException(
+          `Payment amount of ৳${amount.toLocaleString()} exceeds remaining course due (৳${courseDue.toLocaleString()}) for "${selectedEnrollment.course?.name || 'Course'}". Total Paid to Date cannot exceed Total Payable Fee.`
+        );
+      }
+
+      enrollment = selectedEnrollment;
     }
 
     const receiptNumber = await this.generateReceiptNumber();
-    const amount = Number(createPaymentDto.amount);
 
     const payment = this.paymentRepository.create({
       receiptNumber,
