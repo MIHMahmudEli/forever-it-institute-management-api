@@ -11,8 +11,11 @@ import { Course } from '../courses/entities/course.entity.js';
 import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment.entity.js';
 import { Payment, PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity.js';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity.js';
+import { User, UserRole } from '../users/entities/user.entity.js';
 import { CreateRegistrationDto } from './dto/create-registration.dto.js';
 import { numberToWordsBDT } from '../common/utils/amount-in-words.util.js';
+import { generateTemporaryPassword } from '../common/utils/password-generator.util.js';
+import bcrypt from 'bcrypt';
 
 @Injectable()
 export class RegistrationsService {
@@ -104,8 +107,38 @@ export class RegistrationsService {
 
       const courseMap = new Map(courses.map((c) => [c.id, c]));
 
-      // 3. Generate Registration Number & Create Student
+      // 3. Generate Registration Number & Create Student User Account
       const regNumber = await this.generateRegistrationNumber(queryRunner);
+      const studentUsername = regNumber;
+      const studentEmail = dto.email
+        ? dto.email.trim().toLowerCase()
+        : `${regNumber.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.foreveritbd.com`;
+
+      // Check if user with this email or username already exists
+      const existingUser = await queryRunner.manager.findOne(User, {
+        where: [{ email: studentEmail }, { username: studentUsername }],
+      });
+      if (existingUser) {
+        throw new ConflictException(
+          `A portal account with email "${studentEmail}" or username "${studentUsername}" already exists.`
+        );
+      }
+
+      // Generate secure temporary password
+      const tempPassword = generateTemporaryPassword(10);
+      const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+      const studentUser = queryRunner.manager.create(User, {
+        email: studentEmail,
+        username: studentUsername,
+        fullName: dto.fullName.trim(),
+        passwordHash,
+        role: UserRole.STUDENT,
+        isActive: true,
+        mustChangePassword: true,
+      });
+      const savedUser = await queryRunner.manager.save(User, studentUser);
+
       const student = queryRunner.manager.create(Student, {
         registrationNumber: regNumber,
         fullName: dto.fullName.trim(),
@@ -115,6 +148,7 @@ export class RegistrationsService {
         parentName: dto.parentName.trim(),
         parentMobileNumber: dto.parentMobileNumber.trim(),
         status: StudentStatus.ACTIVE,
+        userId: savedUser.id,
         createdBy: performedBy.id || performedBy.email || 'SYSTEM',
       });
 
@@ -188,6 +222,8 @@ export class RegistrationsService {
         performedBy: performedBy.email || 'SYSTEM',
         details: {
           registrationNumber: regNumber,
+          userId: savedUser.id,
+          username: studentUsername,
           coursesCount: savedEnrollments.length,
           totalPayable,
           advancePaid: advanceAmount,
@@ -203,9 +239,15 @@ export class RegistrationsService {
 
       return {
         success: true,
-        message: 'Student registered successfully.',
+        message: 'Student registered successfully and portal account created.',
         registrationNumber: savedStudent.registrationNumber,
         student: savedStudent,
+        studentCredentials: {
+          username: studentUsername,
+          email: studentEmail,
+          temporaryPassword: tempPassword,
+          mustChangePassword: true,
+        },
         enrollments: savedEnrollments,
         payment: savedPayment
           ? {

@@ -4,11 +4,16 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToOne,
+  Index,
+  type Relation,
 } from 'typeorm';
+import type { Student } from '../../students/entities/student.entity.js';
 
 export enum UserRole {
   ADMIN = 'ADMIN',
   STAFF = 'STAFF',
+  STUDENT = 'STUDENT',
   VIEWER = 'VIEWER',
 }
 
@@ -19,6 +24,10 @@ export class User {
 
   @Column({ type: 'varchar', unique: true })
   email: string;
+
+  @Index({ unique: true })
+  @Column({ type: 'varchar', unique: true, nullable: true })
+  username?: string | null;
 
   @Column({ type: 'varchar' })
   passwordHash: string;
@@ -35,6 +44,12 @@ export class User {
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  mustChangePassword: boolean;
+
+  @OneToOne('Student', (student: Student) => student.user)
+  student?: Relation<Student> | null;
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;

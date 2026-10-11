@@ -10,6 +10,9 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  username?: string | null;
+  mustChangePassword?: boolean;
+  studentId?: string | null;
 }
 
 @Injectable()
@@ -30,6 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload) {
     const user = await this.userRepository.findOne({
       where: { id: payload.sub, isActive: true },
+      relations: { student: true },
     });
 
     if (!user) {
@@ -39,8 +43,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       id: user.id,
       email: user.email,
+      username: user.username,
       fullName: user.fullName,
       role: user.role,
+      mustChangePassword: user.mustChangePassword,
+      studentId: user.student?.id || null,
+      student: user.student,
     };
   }
 }

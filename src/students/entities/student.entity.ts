@@ -5,11 +5,14 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  OneToOne,
+  JoinColumn,
   Index,
   type Relation,
 } from 'typeorm';
 import { Enrollment } from '../../enrollments/entities/enrollment.entity.js';
 import { Payment } from '../../payments/entities/payment.entity.js';
+import { User } from '../../users/entities/user.entity.js';
 
 export enum StudentStatus {
   ACTIVE = 'ACTIVE',
@@ -63,6 +66,14 @@ export class Student {
 
   @Column({ type: 'varchar', nullable: true })
   updatedBy: string;
+
+  @Index({ unique: true })
+  @Column({ type: 'uuid', nullable: true, unique: true })
+  userId?: string | null;
+
+  @OneToOne(() => User, (user) => user.student, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'userId' })
+  user?: Relation<User> | null;
 
   @OneToMany(() => Enrollment, (enrollment) => enrollment.student)
   enrollments: Relation<Enrollment>[];

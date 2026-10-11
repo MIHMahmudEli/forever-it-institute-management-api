@@ -293,6 +293,7 @@ export class UsersService {
     }
 
     user.passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    user.mustChangePassword = false;
     await this.userRepository.save(user);
 
     await this.auditLogsService.log({

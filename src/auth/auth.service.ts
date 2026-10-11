@@ -17,8 +17,12 @@ export class AuthService {
   ) {}
 
   async login(loginDto: LoginDto) {
-    const email = loginDto.email.trim().toLowerCase();
-    const user = await this.userRepository.findOne({ where: { email } });
+    const identifier = loginDto.email.trim().toLowerCase();
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.student', 'student')
+      .where('LOWER(user.email) = :identifier OR LOWER(user.username) = :identifier', { identifier })
+      .getOne();
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password.');
@@ -36,8 +40,11 @@ export class AuthService {
     const payload = {
       sub: user.id,
       email: user.email,
+      username: user.username,
       role: user.role,
       fullName: user.fullName,
+      mustChangePassword: user.mustChangePassword,
+      studentId: user.student?.id,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -47,8 +54,12 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         fullName: user.fullName,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
+        studentId: user.student?.id || null,
+        registrationNumber: user.student?.registrationNumber || user.username || null,
       },
     };
   }
@@ -56,12 +67,15 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.userRepository.findOne({
       where: { id: userId, isActive: true },
+      relations: { student: true },
       select: {
         id: true,
         email: true,
+        username: true,
         fullName: true,
         role: true,
         isActive: true,
+        mustChangePassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -71,6 +85,18 @@ export class AuthService {
       throw new UnauthorizedException('User profile not found or inactive.');
     }
 
-    return user;
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      fullName: user.fullName,
+      role: user.role,
+      isActive: user.isActive,
+      mustChangePassword: user.mustChangePassword,
+      studentId: user.student?.id || null,
+      registrationNumber: user.student?.registrationNumber || user.username || null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 }

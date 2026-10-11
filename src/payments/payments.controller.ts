@@ -11,6 +11,7 @@ import { UserRole } from '../users/entities/user.entity.js';
 @ApiTags('Payments')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.STAFF)
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}

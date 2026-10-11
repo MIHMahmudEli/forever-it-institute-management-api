@@ -1,14 +1,19 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import bcrypt from 'bcrypt';
 import { Student, StudentStatus } from './entities/student.entity.js';
 import { CreateStudentDto, UpdateStudentDto, QueryStudentDto } from './dto/create-student.dto.js';
+import { User, UserRole } from '../users/entities/user.entity.js';
+import { generateTemporaryPassword } from '../common/utils/password-generator.util.js';
 
 @Injectable()
 export class StudentsService {
   constructor(
     @InjectRepository(Student)
     private readonly studentRepository: Repository<Student>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   /**
@@ -139,7 +144,7 @@ export class StudentsService {
   async findOne(id: string) {
     const student = await this.studentRepository.findOne({
       where: { id },
-      relations: { enrollments: { course: true }, payments: true },
+      relations: { enrollments: { course: true }, payments: true, user: true },
     });
 
     if (!student) {
@@ -156,12 +161,80 @@ export class StudentsService {
     );
     const outstandingDue = Math.max(0, totalPayable - totalPaid);
 
+    const userSafe = student.user
+      ? {
+          id: student.user.id,
+          email: student.user.email,
+          username: student.user.username,
+          isActive: student.user.isActive,
+          mustChangePassword: student.user.mustChangePassword,
+          role: student.user.role,
+        }
+      : null;
+
     return {
       ...student,
+      user: userSafe,
       financials: {
         totalPayable,
         totalPaid,
         outstandingDue,
+      },
+    };
+  }
+
+  async provisionAccount(studentId: string, customEmail?: string) {
+    const student = await this.studentRepository.findOne({
+      where: { id: studentId, isArchived: false },
+      relations: { user: true },
+    });
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${studentId} not found.`);
+    }
+
+    if (student.userId && student.user) {
+      throw new ConflictException(`Student already has a login account (${student.user.email}).`);
+    }
+
+    const regNo = student.registrationNumber;
+    const email = customEmail?.trim().toLowerCase() || `${regNo.toLowerCase()}@student.foreveritbd.com`;
+
+    const existingUser = await this.userRepository.findOne({
+      where: [{ email }, { username: regNo }],
+    });
+    if (existingUser) {
+      throw new ConflictException(`A user account with email "${email}" or username "${regNo}" already exists.`);
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+
+    const newUser = this.userRepository.create({
+      email,
+      username: regNo,
+      fullName: student.fullName,
+      passwordHash,
+      role: UserRole.STUDENT,
+      isActive: true,
+      mustChangePassword: true,
+    });
+
+    const savedUser = await this.userRepository.save(newUser);
+
+    student.userId = savedUser.id;
+    await this.studentRepository.save(student);
+
+    return {
+      success: true,
+      message: 'Student account provisioned successfully.',
+      studentCredentials: {
+        studentId: student.id,
+        fullName: student.fullName,
+        registrationNumber: regNo,
+        username: regNo,
+        email: savedUser.email,
+        temporaryPassword,
+        mustChangePassword: true,
       },
     };
   }

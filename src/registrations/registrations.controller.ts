@@ -11,6 +11,7 @@ import { UserRole } from '../users/entities/user.entity.js';
 @ApiTags('Registrations')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.STAFF)
 @Controller('registrations')
 export class RegistrationsController {
   constructor(private readonly registrationsService: RegistrationsService) {}

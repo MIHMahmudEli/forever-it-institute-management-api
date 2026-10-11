@@ -11,12 +11,12 @@ import { UserRole } from '../users/entities/user.entity.js';
 @ApiTags('Students')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.STAFF)
 @Controller('students')
 export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.STAFF)
   @ApiOperation({ summary: 'Register a new student record' })
   @ApiResponse({ status: 201, description: 'Student registered successfully' })
   async create(@Body() createStudentDto: CreateStudentDto, @CurrentUser('id') userId: string) {
@@ -35,8 +35,17 @@ export class StudentsController {
     return this.studentsService.findOne(id);
   }
 
+  @Post(':id/provision-account')
+  @ApiOperation({ summary: 'Provision a login account for an existing student without one' })
+  @ApiResponse({ status: 201, description: 'Student portal credentials generated' })
+  async provisionAccount(
+    @Param('id') id: string,
+    @Body('email') email?: string,
+  ) {
+    return this.studentsService.provisionAccount(id, email);
+  }
+
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.STAFF)
   @ApiOperation({ summary: 'Update student details' })
   async update(
     @Param('id') id: string,

@@ -19,6 +19,9 @@ import { ReportsModule } from './reports/reports.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
 
+import { DropRequestsModule } from './drop-requests/drop-requests.module.js';
+import { StudentPortalModule } from './student-portal/student-portal.module.js';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -47,6 +50,8 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
     DashboardModule,
     ReportsModule,
     HealthModule,
+    DropRequestsModule,
+    StudentPortalModule,
   ],
   controllers: [AppController],
   providers: [

@@ -5,7 +5,9 @@ import { Course } from '../courses/entities/course.entity.js';
 import { Enrollment } from '../enrollments/entities/enrollment.entity.js';
 import { Payment } from '../payments/entities/payment.entity.js';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity.js';
+import { DropRequest } from '../drop-requests/entities/drop-request.entity.js';
 import { InitialSchema1710000000000 } from '../database/migrations/1710000000000-InitialSchema.js';
+import { StudentRoleAndDropRequests1710000001000 } from '../database/migrations/1710000001000-StudentRoleAndDropRequests.js';
 
 export class DatabaseConfigurationError extends Error {
   constructor(message: string) {
@@ -87,7 +89,8 @@ export function getDatabaseConfig(env: Record<string, string | undefined> = proc
   const logging = env.DB_LOGGING === 'true';
   const ssl = resolveSslConfig(env);
 
-  const entities = [User, Student, Course, Enrollment, Payment, AuditLog];
+  const entities = [User, Student, Course, Enrollment, Payment, AuditLog, DropRequest];
+  const migrations = [InitialSchema1710000000000, StudentRoleAndDropRequests1710000001000];
 
   if (databaseUrl) {
     // Validate PostgreSQL URL format
@@ -105,7 +108,7 @@ export function getDatabaseConfig(env: Record<string, string | undefined> = proc
       synchronize,
       logging,
       entities,
-      migrations: [InitialSchema1710000000000],
+      migrations,
     } as DataSourceOptions;
   }
 
@@ -141,6 +144,6 @@ export function getDatabaseConfig(env: Record<string, string | undefined> = proc
     synchronize,
     logging,
     entities,
-    migrations: [InitialSchema1710000000000],
+    migrations,
   } as DataSourceOptions;
 }

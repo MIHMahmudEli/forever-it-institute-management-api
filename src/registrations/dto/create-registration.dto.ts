@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
+  IsEmail,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -57,6 +58,11 @@ export class CreateRegistrationDto {
     message: 'Please enter a valid Bangladeshi mobile number (e.g. 01712345678).',
   })
   mobileNumber: string;
+
+  @ApiProperty({ example: 'student@example.com', description: 'Student Email (optional)', required: false })
+  @IsEmail({}, { message: 'Please provide a valid email address.' })
+  @IsOptional()
+  email?: string;
 
   @ApiProperty({ example: 'Md. Rafiqul Islam', description: "Parents' Name" })
   @IsString()
