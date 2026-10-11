@@ -25,6 +25,22 @@ async function bootstrap() {
     });
   });
 
+  // Graceful fallback for clients omitting the API prefix (e.g., /auth/login -> /api/v1/auth/login)
+  app.use((req: any, _res: any, next: any) => {
+    const rawUrl: string = req.url || '';
+    const cleanPrefix = apiPrefix.startsWith('/') ? apiPrefix : `/${apiPrefix}`;
+    if (
+      !rawUrl.startsWith(cleanPrefix) &&
+      !rawUrl.startsWith('/api/') &&
+      rawUrl !== '/' &&
+      rawUrl !== '' &&
+      !rawUrl.startsWith('/favicon.ico')
+    ) {
+      req.url = `${cleanPrefix}${rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`}`;
+    }
+    next();
+  });
+
   // Global Exception Filter
   app.useGlobalFilters(new HttpExceptionFilter());
 
