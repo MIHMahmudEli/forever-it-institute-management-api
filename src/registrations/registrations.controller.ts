@@ -29,8 +29,9 @@ export class RegistrationsController {
   }
 
   @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.STUDENT)
   @ApiOperation({ summary: 'Get printable registration document data by Student ID or Registration Number' })
-  async getRegistrationDocument(@Param('id') id: string) {
-    return this.registrationsService.getRegistrationDocument(id);
+  async getRegistrationDocument(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.registrationsService.getRegistrationDocument(id, user);
   }
 }

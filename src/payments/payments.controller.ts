@@ -37,9 +37,10 @@ export class PaymentsController {
   }
 
   @Get(':id/receipt')
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.STUDENT)
   @ApiOperation({ summary: 'Get printable payment receipt details' })
-  async getReceipt(@Param('id') id: string) {
-    return this.paymentsService.getReceipt(id);
+  async getReceipt(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.paymentsService.getReceipt(id, user);
   }
 
   @Post(':id/reverse')

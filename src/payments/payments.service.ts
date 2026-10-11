@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity.js';
@@ -6,6 +6,7 @@ import { Student } from '../students/entities/student.entity.js';
 import { Enrollment } from '../enrollments/entities/enrollment.entity.js';
 import { CreatePaymentDto, ReversePaymentDto, QueryPaymentDto } from './dto/create-payment.dto.js';
 import { numberToWordsBDT } from '../common/utils/amount-in-words.util.js';
+import { UserRole } from '../users/entities/user.entity.js';
 
 @Injectable()
 export class PaymentsService {
@@ -157,7 +158,7 @@ export class PaymentsService {
     };
   }
 
-  async getReceipt(id: string) {
+  async getReceipt(id: string, user?: { id: string; role: UserRole }) {
     const payment = await this.paymentRepository.findOne({
       where: { id },
       relations: { student: true, enrollment: { course: true } },
@@ -165,6 +166,15 @@ export class PaymentsService {
 
     if (!payment) {
       throw new NotFoundException(`Payment with ID ${id} not found.`);
+    }
+
+    if (user && user.role === UserRole.STUDENT) {
+      const student = await this.studentRepository.findOne({
+        where: { userId: user.id },
+      });
+      if (!student || student.id !== payment.studentId) {
+        throw new ForbiddenException('You are not authorized to view receipts belonging to another student.');
+      }
     }
 
     // Compute student's overall financial balance

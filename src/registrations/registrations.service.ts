@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
@@ -280,7 +281,7 @@ export class RegistrationsService {
   /**
    * Retrieves the comprehensive registration document for printing
    */
-  async getRegistrationDocument(idOrRegNo: string) {
+  async getRegistrationDocument(idOrRegNo: string, user?: { id: string; role: UserRole }) {
     const student = await this.dataSource.getRepository(Student).findOne({
       where: [{ id: idOrRegNo }, { registrationNumber: idOrRegNo }],
       relations: { enrollments: { course: true }, payments: true },
@@ -288,6 +289,12 @@ export class RegistrationsService {
 
     if (!student) {
       throw new NotFoundException(`Registration record for "${idOrRegNo}" not found.`);
+    }
+
+    if (user && user.role === UserRole.STUDENT) {
+      if (student.userId !== user.id) {
+        throw new ForbiddenException('You are not authorized to view registration documents for another student.');
+      }
     }
 
     const totalPayable = (student.enrollments || []).reduce(
