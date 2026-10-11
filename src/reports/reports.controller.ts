@@ -4,15 +4,19 @@ import { ReportsService } from './reports.service.js';
 import { EnrollmentStatus } from '../enrollments/entities/enrollment.entity.js';
 import { PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../common/guards/roles.guard.js';
+import { Roles } from '../common/decorators/roles.decorator.js';
+import { UserRole } from '../users/entities/user.entity.js';
 
 @ApiTags('Reports')
 @ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get('enrollments')
+  @Roles(UserRole.ADMIN, UserRole.STAFF)
   @ApiOperation({ summary: 'Get enrollment report with date range and status filters' })
   @ApiQuery({ name: 'startDate', required: false })
   @ApiQuery({ name: 'endDate', required: false })
@@ -28,6 +32,7 @@ export class ReportsController {
   }
 
   @Get('payments')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get payment report with date range, method, and status filters' })
   @ApiQuery({ name: 'startDate', required: false })
   @ApiQuery({ name: 'endDate', required: false })
@@ -43,6 +48,7 @@ export class ReportsController {
   }
 
   @Get('dues')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get outstanding dues report across all students' })
   async getDuesReport() {
     return this.reportsService.getDuesReport();

@@ -17,6 +17,7 @@ import { RegistrationsModule } from './registrations/registrations.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { HealthModule } from './health/health.module.js';
+import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { HealthModule } from './health/health.module.js';
         limit: 100,
       },
     ]),
+    AuditLogsModule,
     AuthModule,
     UsersModule,
     CoursesModule,
