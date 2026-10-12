@@ -275,7 +275,7 @@ export class StudentPortalService {
 
     const payments = await this.paymentRepository.find({
       where: { studentId: student.id },
-      relations: { enrollment: { course: true } },
+      relations: { enrollment: { course: true }, student: true },
       order: { paymentDate: 'DESC' },
     });
 
