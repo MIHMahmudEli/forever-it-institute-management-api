@@ -7,10 +7,11 @@ import { Enrollment } from '../enrollments/entities/enrollment.entity.js';
 import { Payment } from '../payments/entities/payment.entity.js';
 import { DropRequest } from '../drop-requests/entities/drop-request.entity.js';
 import { User } from '../users/entities/user.entity.js';
+import { Course } from '../courses/entities/course.entity.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Student, Enrollment, Payment, DropRequest, User]),
+    TypeOrmModule.forFeature([Student, Enrollment, Payment, DropRequest, User, Course]),
   ],
   controllers: [StudentPortalController],
   providers: [StudentPortalService],

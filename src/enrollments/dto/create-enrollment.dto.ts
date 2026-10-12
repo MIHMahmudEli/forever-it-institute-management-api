@@ -47,6 +47,12 @@ export class UpdateEnrollmentDto {
   @IsOptional()
   status?: EnrollmentStatus;
 
+  @ApiProperty({ example: 15000.0, description: 'Agreed course fee', required: false })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  agreedFee?: number;
+
   @ApiProperty({ required: false })
   @IsNumber()
   @Min(0)

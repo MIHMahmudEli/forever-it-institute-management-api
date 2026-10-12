@@ -12,7 +12,11 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { StudentPortalService } from './student-portal.service.js';
-import { CreateStudentDropRequestDto, UpdateStudentProfileDto } from './dto/student-portal.dto.js';
+import {
+  CreateStudentDropRequestDto,
+  UpdateStudentProfileDto,
+  RequestCourseEnrollmentDto,
+} from './dto/student-portal.dto.js';
 import { ChangePasswordDto } from '../users/dto/change-password.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
@@ -128,5 +132,32 @@ export class StudentPortalController {
     @Param('id') id: string,
   ) {
     return this.studentPortalService.cancelDropRequest(userId, id);
+  }
+
+  @Get('available-courses')
+  @ApiOperation({ summary: 'List all available institute courses with enrollment status' })
+  @ApiResponse({ status: 200, description: 'List of available courses' })
+  async getAvailableCourses(@CurrentUser('id') userId: string) {
+    return this.studentPortalService.getAvailableCourses(userId);
+  }
+
+  @Post('request-enrollment')
+  @ApiOperation({ summary: 'Request enrollment into an available course' })
+  @ApiResponse({ status: 201, description: 'Enrollment request submitted with PENDING status' })
+  async requestEnrollment(
+    @CurrentUser('id') userId: string,
+    @Body() dto: RequestCourseEnrollmentDto,
+  ) {
+    return this.studentPortalService.requestEnrollment(userId, dto);
+  }
+
+  @Delete('enrollments/:enrollmentId')
+  @ApiOperation({ summary: 'Cancel a pending course enrollment request' })
+  @ApiResponse({ status: 200, description: 'Pending enrollment request cancelled' })
+  async cancelEnrollmentRequest(
+    @CurrentUser('id') userId: string,
+    @Param('enrollmentId') enrollmentId: string,
+  ) {
+    return this.studentPortalService.cancelEnrollmentRequest(userId, enrollmentId);
   }
 }

@@ -7,14 +7,19 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import bcrypt from 'bcrypt';
 import { Student } from '../students/entities/student.entity.js';
 import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment.entity.js';
 import { Payment } from '../payments/entities/payment.entity.js';
 import { DropRequest, DropRequestStatus } from '../drop-requests/entities/drop-request.entity.js';
 import { User } from '../users/entities/user.entity.js';
-import { CreateStudentDropRequestDto, UpdateStudentProfileDto } from './dto/student-portal.dto.js';
+import { Course, CourseStatus } from '../courses/entities/course.entity.js';
+import {
+  CreateStudentDropRequestDto,
+  UpdateStudentProfileDto,
+  RequestCourseEnrollmentDto,
+} from './dto/student-portal.dto.js';
 import { ChangePasswordDto } from '../users/dto/change-password.dto.js';
 
 @Injectable()
@@ -32,6 +37,8 @@ export class StudentPortalService {
     private readonly dropRequestRepository: Repository<DropRequest>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Course)
+    private readonly courseRepository: Repository<Course>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -428,5 +435,107 @@ export class StudentPortalService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async getAvailableCourses(userId: string) {
+    const student = await this.getStudentByUserId(userId);
+
+    const [allCourses, studentEnrollments] = await Promise.all([
+      this.courseRepository.find({
+        where: { status: CourseStatus.ACTIVE },
+        order: { name: 'ASC' },
+      }),
+      this.enrollmentRepository.find({
+        where: { studentId: student.id },
+      }),
+    ]);
+
+    return allCourses.map((course) => {
+      const activeOrPending = studentEnrollments.find(
+        (e) => e.courseId === course.id && e.status !== EnrollmentStatus.CANCELLED,
+      );
+      return {
+        ...course,
+        enrollmentStatus: activeOrPending ? activeOrPending.status : null,
+        enrollmentId: activeOrPending ? activeOrPending.id : null,
+      };
+    });
+  }
+
+  async requestEnrollment(userId: string, dto: RequestCourseEnrollmentDto) {
+    const student = await this.getStudentByUserId(userId);
+
+    const course = await this.courseRepository.findOne({
+      where: { id: dto.courseId, status: CourseStatus.ACTIVE },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found or is currently inactive.');
+    }
+
+    const existing = await this.enrollmentRepository.findOne({
+      where: {
+        studentId: student.id,
+        courseId: course.id,
+        status: In([EnrollmentStatus.ACTIVE, EnrollmentStatus.PENDING]),
+      },
+    });
+
+    if (existing) {
+      if (existing.status === EnrollmentStatus.ACTIVE) {
+        throw new ConflictException(`You are already actively enrolled in "${course.name}".`);
+      }
+      throw new ConflictException(`You already have a pending enrollment request for "${course.name}".`);
+    }
+
+    const enrollment = this.enrollmentRepository.create({
+      studentId: student.id,
+      courseId: course.id,
+      agreedFee: Number(course.totalFee),
+      discount: 0,
+      finalFee: Number(course.totalFee),
+      status: EnrollmentStatus.PENDING,
+      enrollmentDate: new Date().toISOString().split('T')[0],
+      notes: dto.notes
+        ? `[Student Portal Request] ${dto.notes.trim()}`
+        : '[Student Portal Request] Requested enrollment via student portal',
+    });
+
+    const saved = await this.enrollmentRepository.save(enrollment);
+
+    return {
+      success: true,
+      message: `Enrollment request for "${course.name}" submitted successfully. Institute administration will review and activate your enrollment.`,
+      enrollment: saved,
+    };
+  }
+
+  async cancelEnrollmentRequest(userId: string, enrollmentId: string) {
+    const student = await this.getStudentByUserId(userId);
+
+    const enrollment = await this.enrollmentRepository.findOne({
+      where: { id: enrollmentId, studentId: student.id },
+      relations: { course: true },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment request not found.');
+    }
+
+    if (enrollment.status !== EnrollmentStatus.PENDING) {
+      throw new BadRequestException('Only pending enrollment requests can be cancelled.');
+    }
+
+    enrollment.status = EnrollmentStatus.CANCELLED;
+    enrollment.notes = enrollment.notes
+      ? `${enrollment.notes} (Cancelled by student on ${new Date().toISOString().split('T')[0]})`
+      : `Cancelled by student on ${new Date().toISOString().split('T')[0]}`;
+
+    await this.enrollmentRepository.save(enrollment);
+
+    return {
+      success: true,
+      message: `Enrollment request for "${enrollment.course?.name || 'course'}" has been cancelled.`,
+    };
   }
 }

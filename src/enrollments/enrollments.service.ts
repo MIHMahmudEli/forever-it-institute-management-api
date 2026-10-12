@@ -33,7 +33,7 @@ export class EnrollmentsService {
     }
 
     // Check duplicate active enrollment
-    const existing = await this.enrollmentRepository.findOne({
+    const existingActive = await this.enrollmentRepository.findOne({
       where: {
         studentId: student.id,
         courseId: course.id,
@@ -41,7 +41,7 @@ export class EnrollmentsService {
       },
     });
 
-    if (existing) {
+    if (existingActive) {
       throw new ConflictException(`Student is already actively enrolled in course: ${course.name}`);
     }
 
@@ -55,6 +55,27 @@ export class EnrollmentsService {
     }
 
     const finalFee = agreedFee - discount;
+
+    // If an existing pending request exists, activate/update it
+    const existingPending = await this.enrollmentRepository.findOne({
+      where: {
+        studentId: student.id,
+        courseId: course.id,
+        status: EnrollmentStatus.PENDING,
+      },
+    });
+
+    if (existingPending) {
+      existingPending.agreedFee = agreedFee;
+      existingPending.discount = discount;
+      existingPending.finalFee = finalFee;
+      existingPending.status = createEnrollmentDto.status || EnrollmentStatus.ACTIVE;
+      existingPending.enrollmentDate = createEnrollmentDto.enrollmentDate || new Date().toISOString().split('T')[0];
+      if (createEnrollmentDto.notes) {
+        existingPending.notes = createEnrollmentDto.notes;
+      }
+      return this.enrollmentRepository.save(existingPending);
+    }
 
     const enrollment = this.enrollmentRepository.create({
       studentId: student.id,
@@ -113,14 +134,19 @@ export class EnrollmentsService {
     if (updateEnrollmentDto.status !== undefined) {
       enrollment.status = updateEnrollmentDto.status;
     }
+    if (updateEnrollmentDto.agreedFee !== undefined) {
+      enrollment.agreedFee = Number(updateEnrollmentDto.agreedFee);
+    }
+    const currentAgreed = Number(enrollment.agreedFee);
     if (updateEnrollmentDto.discount !== undefined) {
       const discount = Number(updateEnrollmentDto.discount);
-      if (discount > Number(enrollment.agreedFee)) {
+      if (discount > currentAgreed) {
         throw new BadRequestException('Discount cannot exceed the agreed course fee.');
       }
       enrollment.discount = discount;
-      enrollment.finalFee = Number(enrollment.agreedFee) - discount;
     }
+    enrollment.finalFee = currentAgreed - Number(enrollment.discount || 0);
+
     if (updateEnrollmentDto.notes !== undefined) {
       enrollment.notes = updateEnrollmentDto.notes;
     }

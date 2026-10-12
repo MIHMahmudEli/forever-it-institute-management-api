@@ -30,3 +30,15 @@ export class UpdateStudentProfileDto {
   @IsString()
   parentMobileNumber?: string;
 }
+
+export class RequestCourseEnrollmentDto {
+  @ApiProperty({ description: 'Course UUID to request enrollment in' })
+  @IsUUID()
+  @IsNotEmpty()
+  courseId: string;
+
+  @ApiPropertyOptional({ description: 'Optional message or batch preference for administration' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
