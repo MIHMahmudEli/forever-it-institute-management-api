@@ -45,6 +45,13 @@ export class StudentsController {
     return this.studentsService.provisionAccount(id, email);
   }
 
+  @Post(':id/regenerate-credentials')
+  @ApiOperation({ summary: 'Regenerate login credentials for an existing student' })
+  @ApiResponse({ status: 200, description: 'Student portal credentials regenerated' })
+  async regenerateCredentials(@Param('id') id: string) {
+    return this.studentsService.regenerateCredentials(id);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Update student details' })
   async update(

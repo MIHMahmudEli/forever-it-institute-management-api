@@ -251,6 +251,49 @@ export class StudentsService {
     };
   }
 
+  async regenerateCredentials(studentId: string) {
+    const student = await this.studentRepository.findOne({
+      where: { id: studentId, isArchived: false },
+      relations: { user: true },
+    });
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${studentId} not found.`);
+    }
+
+    if (!student.userId || !student.user) {
+      return this.provisionAccount(studentId);
+    }
+
+    const regNo = student.registrationNumber;
+    const temporaryPassword = generateTemporaryPassword(10);
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+
+    const user = student.user;
+    user.passwordHash = passwordHash;
+    user.mustChangePassword = true;
+    user.isActive = true;
+
+    if (!user.username) {
+      user.username = regNo;
+    }
+
+    await this.userRepository.save(user);
+
+    return {
+      success: true,
+      message: 'Student credentials regenerated successfully.',
+      studentCredentials: {
+        studentId: student.id,
+        fullName: student.fullName,
+        registrationNumber: regNo,
+        username: user.username,
+        email: user.email,
+        temporaryPassword,
+        mustChangePassword: true,
+      },
+    };
+  }
+
   async update(id: string, updateStudentDto: UpdateStudentDto, updatedBy?: string) {
     const student = await this.studentRepository.findOne({ where: { id } });
     if (!student) {
