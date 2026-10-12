@@ -275,6 +275,9 @@ export class PaymentsService {
       status: payment.status,
       notes: payment.notes,
       receivedBy: payment.receivedBy || 'Authorized Officer',
+      reversalReason: payment.reversalReason,
+      reversedBy: payment.reversedBy,
+      reversedAt: payment.reversedAt,
       student: {
         id: payment.student.id,
         registrationNumber: payment.student.registrationNumber,
