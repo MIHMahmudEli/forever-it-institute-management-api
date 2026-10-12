@@ -16,11 +16,16 @@ import { User, UserRole } from '../users/entities/user.entity.js';
 import { CreateRegistrationDto } from './dto/create-registration.dto.js';
 import { numberToWordsBDT } from '../common/utils/amount-in-words.util.js';
 import { generateTemporaryPassword } from '../common/utils/password-generator.util.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { NotificationType } from '../notifications/entities/notification.entity.js';
 import bcrypt from 'bcrypt';
 
 @Injectable()
 export class RegistrationsService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private async generateRegistrationNumber(queryRunner: any): Promise<string> {
     const now = new Date();
@@ -235,6 +240,25 @@ export class RegistrationsService {
 
       // Commit transaction
       await queryRunner.commitTransaction();
+
+      // Dispatch notifications
+      this.notificationsService.sendToStaffAndAdmin({
+        title: `New Student Registered: ${savedStudent.fullName}`,
+        message: `Student ${savedStudent.fullName} (${savedStudent.registrationNumber}) has been registered with ${dto.courses.length} course(s). Advance Paid: ৳${advanceAmount.toLocaleString()}.`,
+        type: NotificationType.STUDENT_REGISTERED,
+        link: `/students/${savedStudent.id}`,
+        metadata: { studentId: savedStudent.id, registrationNumber: savedStudent.registrationNumber },
+      }).catch(() => {});
+
+      if (savedUser?.id) {
+        this.notificationsService.sendToUser(savedUser.id, {
+          title: 'Welcome to Forever IT Institute!',
+          message: `Hello ${savedStudent.fullName}, welcome to your student portal! You can view your enrolled courses and money receipts here.`,
+          type: NotificationType.SYSTEM,
+          link: '/student/dashboard',
+          metadata: { studentId: savedStudent.id },
+        }).catch(() => {});
+      }
 
       const outstandingDue = Math.max(0, totalPayable - advanceAmount);
 

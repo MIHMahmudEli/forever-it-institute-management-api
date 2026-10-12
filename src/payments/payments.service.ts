@@ -7,6 +7,8 @@ import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment
 import { CreatePaymentDto, ReversePaymentDto, QueryPaymentDto } from './dto/create-payment.dto.js';
 import { numberToWordsBDT } from '../common/utils/amount-in-words.util.js';
 import { UserRole } from '../users/entities/user.entity.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { NotificationType } from '../notifications/entities/notification.entity.js';
 
 @Injectable()
 export class PaymentsService {
@@ -17,6 +19,7 @@ export class PaymentsService {
     private readonly studentRepository: Repository<Student>,
     @InjectRepository(Enrollment)
     private readonly enrollmentRepository: Repository<Enrollment>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -147,6 +150,26 @@ export class PaymentsService {
     });
 
     const savedPayment = await this.paymentRepository.save(payment);
+
+    // 1. Notify Staff and Admins
+    this.notificationsService.sendToStaffAndAdmin({
+      title: `Payment Received: ৳${amount.toLocaleString()}`,
+      message: `Payment receipt ${receiptNumber} generated for ${student.fullName} (${student.registrationNumber}). Method: ${createPaymentDto.paymentMethod}.`,
+      type: NotificationType.PAYMENT_RECEIVED,
+      link: '/payments',
+      metadata: { paymentId: savedPayment.id, receiptNumber, studentId: student.id, amount },
+    }).catch(() => {});
+
+    // 2. Notify Student if portal account exists
+    if (student.userId) {
+      this.notificationsService.sendToUser(student.userId, {
+        title: `Payment Received: ৳${amount.toLocaleString()}`,
+        message: `Your payment of ৳${amount.toLocaleString()} was successfully recorded (Receipt: ${receiptNumber}).`,
+        type: NotificationType.PAYMENT_RECEIVED,
+        link: '/student/payments',
+        metadata: { paymentId: savedPayment.id, receiptNumber, amount },
+      }).catch(() => {});
+    }
 
     return {
       ...savedPayment,
@@ -322,6 +345,30 @@ export class PaymentsService {
     payment.reversedBy = reversedBy;
     payment.reversedAt = new Date();
 
-    return this.paymentRepository.save(payment);
+    const saved = await this.paymentRepository.save(payment);
+
+    // 1. Notify Staff and Admins
+    this.notificationsService.sendToStaffAndAdmin({
+      title: `Payment Reversed: ${payment.receiptNumber}`,
+      message: `Receipt ${payment.receiptNumber} (৳${Number(payment.amount).toLocaleString()}) was reversed. Reason: ${reversePaymentDto.reversalReason.trim()}`,
+      type: NotificationType.PAYMENT_REVERSED,
+      link: '/payments',
+      metadata: { paymentId: payment.id, receiptNumber: payment.receiptNumber, reversalReason: reversePaymentDto.reversalReason.trim() },
+    }).catch(() => {});
+
+    // 2. Notify Student if portal account exists
+    this.studentRepository.findOne({ where: { id: payment.studentId } }).then((st) => {
+      if (st?.userId) {
+        this.notificationsService.sendToUser(st.userId, {
+          title: 'Payment Receipt Reversed',
+          message: `Receipt ${payment.receiptNumber} (৳${Number(payment.amount).toLocaleString()}) was marked as reversed. Reason: ${reversePaymentDto.reversalReason.trim()}`,
+          type: NotificationType.PAYMENT_REVERSED,
+          link: '/student/payments',
+          metadata: { paymentId: payment.id, receiptNumber: payment.receiptNumber },
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
+    return saved;
   }
 }

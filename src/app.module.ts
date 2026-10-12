@@ -21,6 +21,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
 
 import { DropRequestsModule } from './drop-requests/drop-requests.module.js';
 import { StudentPortalModule } from './student-portal/student-portal.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { StudentPortalModule } from './student-portal/student-portal.module.js';
     HealthModule,
     DropRequestsModule,
     StudentPortalModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

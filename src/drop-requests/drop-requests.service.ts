@@ -6,6 +6,8 @@ import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity.js';
 import { Student } from '../students/entities/student.entity.js';
 import { QueryDropRequestDto, ReviewDropRequestDto } from './dto/drop-request.dto.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { NotificationType } from '../notifications/entities/notification.entity.js';
 
 @Injectable()
 export class DropRequestsService {
@@ -19,6 +21,7 @@ export class DropRequestsService {
     @InjectRepository(Student)
     private readonly studentRepository: Repository<Student>,
     private readonly dataSource: DataSource,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findAll(query: QueryDropRequestDto) {
@@ -140,6 +143,18 @@ export class DropRequestsService {
 
       await queryRunner.commitTransaction();
 
+      // If student has a portal user account, notify student
+      const student = await this.studentRepository.findOne({ where: { id: dropRequest.studentId } });
+      if (student?.userId) {
+        this.notificationsService.sendToUser(student.userId, {
+          title: 'Course Drop Request Approved',
+          message: `Your request to drop course has been approved by ${reviewerName}.${dto?.adminNotes ? ` Note: ${dto.adminNotes}` : ''}`,
+          type: NotificationType.DROP_REQUEST_REVIEWED,
+          link: '/student/drop-requests',
+          metadata: { dropRequestId: dropRequest.id },
+        }).catch((err) => this.logger.error('Failed to notify student of drop approval', err));
+      }
+
       return {
         success: true,
         message: 'Course drop request approved successfully.',
@@ -188,6 +203,18 @@ export class DropRequestsService {
       await queryRunner.manager.save(Enrollment, enrollment);
 
       await queryRunner.commitTransaction();
+
+      // If student has a portal user account, notify student
+      const student = await this.studentRepository.findOne({ where: { id: dropRequest.studentId } });
+      if (student?.userId) {
+        this.notificationsService.sendToUser(student.userId, {
+          title: 'Course Drop Request Rejected',
+          message: `Your request to drop course was rejected by ${reviewerName}.${dto?.adminNotes ? ` Note: ${dto.adminNotes}` : ''}`,
+          type: NotificationType.DROP_REQUEST_REVIEWED,
+          link: '/student/drop-requests',
+          metadata: { dropRequestId: dropRequest.id },
+        }).catch((err) => this.logger.error('Failed to notify student of drop rejection', err));
+      }
 
       return {
         success: true,

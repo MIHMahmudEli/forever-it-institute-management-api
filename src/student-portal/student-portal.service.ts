@@ -21,6 +21,8 @@ import {
   RequestCourseEnrollmentDto,
 } from './dto/student-portal.dto.js';
 import { ChangePasswordDto } from '../users/dto/change-password.dto.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { NotificationType } from '../notifications/entities/notification.entity.js';
 
 @Injectable()
 export class StudentPortalService {
@@ -40,6 +42,7 @@ export class StudentPortalService {
     @InjectRepository(Course)
     private readonly courseRepository: Repository<Course>,
     private readonly dataSource: DataSource,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private async getStudentByUserId(userId: string): Promise<Student> {
@@ -375,6 +378,15 @@ export class StudentPortalService {
 
       await queryRunner.commitTransaction();
 
+      // Notify Staff and Admins in real-time
+      this.notificationsService.sendToStaffAndAdmin({
+        title: 'New Course Drop Request',
+        message: `${student.fullName} (${student.registrationNumber}) submitted a drop request for "${enrollment.course?.name || 'course'}". Reason: ${dto.reason || 'None specified'}.`,
+        type: NotificationType.DROP_REQUEST,
+        link: '/drop-requests',
+        metadata: { studentId: student.id, enrollmentId: enrollment.id, dropRequestId: savedRequest.id },
+      }).catch((err) => this.logger.error('Failed to dispatch drop request notification', err));
+
       return {
         success: true,
         message: 'Drop request submitted successfully. Institute administration will review your request.',
@@ -424,6 +436,15 @@ export class StudentPortalService {
       }
 
       await queryRunner.commitTransaction();
+
+      // Notify staff/admin that student cancelled drop request
+      this.notificationsService.sendToStaffAndAdmin({
+        title: 'Drop Request Cancelled',
+        message: `${student.fullName} (${student.registrationNumber}) cancelled their drop request.`,
+        type: NotificationType.DROP_REQUEST,
+        link: '/drop-requests',
+        metadata: { studentId: student.id, dropRequestId },
+      }).catch((err) => this.logger.error('Failed to dispatch drop cancellation notification', err));
 
       return {
         success: true,
@@ -503,6 +524,15 @@ export class StudentPortalService {
 
     const saved = await this.enrollmentRepository.save(enrollment);
 
+    // Notify Staff and Admins in real-time
+    this.notificationsService.sendToStaffAndAdmin({
+      title: 'New Course Enrollment Request',
+      message: `${student.fullName} (${student.registrationNumber}) requested to enroll in "${course.name}". Total Fee: ৳${Number(course.totalFee).toLocaleString()}.`,
+      type: NotificationType.COURSE_REQUEST,
+      link: '/enrollments?status=PENDING',
+      metadata: { studentId: student.id, courseId: course.id, enrollmentId: saved.id },
+    }).catch((err) => this.logger.error('Failed to dispatch enrollment request notification', err));
+
     return {
       success: true,
       message: `Enrollment request for "${course.name}" submitted successfully. Institute administration will review and activate your enrollment.`,
@@ -532,6 +562,15 @@ export class StudentPortalService {
       : `Cancelled by student on ${new Date().toISOString().split('T')[0]}`;
 
     await this.enrollmentRepository.save(enrollment);
+
+    // Notify staff/admins
+    this.notificationsService.sendToStaffAndAdmin({
+      title: 'Enrollment Request Cancelled',
+      message: `${student.fullName} (${student.registrationNumber}) cancelled their enrollment request for "${enrollment.course?.name || 'course'}".`,
+      type: NotificationType.COURSE_REQUEST,
+      link: '/enrollments',
+      metadata: { studentId: student.id, enrollmentId },
+    }).catch((err) => this.logger.error('Failed to dispatch enrollment cancel notification', err));
 
     return {
       success: true,

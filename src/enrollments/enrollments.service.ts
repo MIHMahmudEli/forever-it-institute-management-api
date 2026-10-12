@@ -5,6 +5,8 @@ import { Enrollment, EnrollmentStatus } from './entities/enrollment.entity.js';
 import { Student } from '../students/entities/student.entity.js';
 import { Course } from '../courses/entities/course.entity.js';
 import { CreateEnrollmentDto, UpdateEnrollmentDto } from './dto/create-enrollment.dto.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { NotificationType } from '../notifications/entities/notification.entity.js';
 
 @Injectable()
 export class EnrollmentsService {
@@ -15,6 +17,7 @@ export class EnrollmentsService {
     private readonly studentRepository: Repository<Student>,
     @InjectRepository(Course)
     private readonly courseRepository: Repository<Course>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(createEnrollmentDto: CreateEnrollmentDto) {
@@ -74,7 +77,17 @@ export class EnrollmentsService {
       if (createEnrollmentDto.notes) {
         existingPending.notes = createEnrollmentDto.notes;
       }
-      return this.enrollmentRepository.save(existingPending);
+      const savedPending = await this.enrollmentRepository.save(existingPending);
+      if (student.userId && savedPending.status === EnrollmentStatus.ACTIVE) {
+        this.notificationsService.sendToUser(student.userId, {
+          title: 'Course Enrollment Activated',
+          message: `Your enrollment in "${course.name}" is now active!`,
+          type: NotificationType.ENROLLMENT_APPROVED,
+          link: '/student/courses',
+          metadata: { courseId: course.id, enrollmentId: savedPending.id },
+        }).catch(() => {});
+      }
+      return savedPending;
     }
 
     const enrollment = this.enrollmentRepository.create({
@@ -88,7 +101,18 @@ export class EnrollmentsService {
       notes: createEnrollmentDto.notes || null,
     });
 
-    return this.enrollmentRepository.save(enrollment);
+    const saved = await this.enrollmentRepository.save(enrollment);
+    if (student.userId && saved.status === EnrollmentStatus.ACTIVE) {
+      this.notificationsService.sendToUser(student.userId, {
+        title: 'Course Enrollment Activated',
+        message: `Your enrollment in "${course.name}" is now active!`,
+        type: NotificationType.ENROLLMENT_APPROVED,
+        link: '/student/courses',
+        metadata: { courseId: course.id, enrollmentId: saved.id },
+      }).catch(() => {});
+    }
+
+    return saved;
   }
 
   async findAll(studentId?: string, courseId?: string, status?: EnrollmentStatus) {
@@ -151,6 +175,28 @@ export class EnrollmentsService {
       enrollment.notes = updateEnrollmentDto.notes;
     }
 
-    return this.enrollmentRepository.save(enrollment);
+    const saved = await this.enrollmentRepository.save(enrollment);
+
+    if (updateEnrollmentDto.status !== undefined) {
+      this.studentRepository.findOne({ where: { id: saved.studentId } }).then((st) => {
+        if (st?.userId) {
+          this.courseRepository.findOne({ where: { id: saved.courseId } }).then((c) => {
+            const courseName = c?.name || 'course';
+            const isApproved = saved.status === EnrollmentStatus.ACTIVE;
+            this.notificationsService.sendToUser(st.userId!, {
+              title: isApproved ? 'Course Enrollment Approved' : `Enrollment Status: ${saved.status}`,
+              message: isApproved
+                ? `Your enrollment for "${courseName}" has been approved and activated.`
+                : `Your enrollment for "${courseName}" status is now ${saved.status}.`,
+              type: isApproved ? NotificationType.ENROLLMENT_APPROVED : NotificationType.SYSTEM,
+              link: '/student/courses',
+              metadata: { enrollmentId: saved.id },
+            }).catch(() => {});
+          });
+        }
+      }).catch(() => {});
+    }
+
+    return saved;
   }
 }
