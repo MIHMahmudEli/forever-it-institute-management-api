@@ -51,7 +51,12 @@ export class DashboardService {
 
     // Recent 5 payments
     const recentPayments = await paymentRepo.find({
-      relations: { student: true },
+      relations: {
+        student: true,
+        enrollment: {
+          course: true,
+        },
+      },
       order: { createdAt: 'DESC' },
       take: 5,
     });
@@ -112,6 +117,12 @@ export class DashboardService {
         paymentMethod: p.paymentMethod,
         paymentDate: p.paymentDate,
         status: p.status,
+        reversalReason: p.reversalReason,
+        reversedBy: p.reversedBy,
+        reversedAt: p.reversedAt,
+        transactionReference: p.transactionReference,
+        student: p.student,
+        enrollment: p.enrollment,
       })),
       courseDistribution: courseDistribution.map((item) => ({
         name: item.courseName || 'Unassigned',
