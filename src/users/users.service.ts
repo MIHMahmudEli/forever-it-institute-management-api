@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, In } from 'typeorm';
 import bcrypt from 'bcrypt';
 import { User, UserRole } from './entities/user.entity.js';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto.js';
@@ -139,7 +139,9 @@ export class UsersService {
     const limit = Math.min(100, Math.max(1, params?.limit || 10));
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = {
+      role: In([UserRole.STAFF, UserRole.ADMIN]),
+    };
 
     if (params?.status === 'ACTIVE') {
       where.isActive = true;
@@ -186,12 +188,16 @@ export class UsersService {
   }
 
   async findStaffById(id: string) {
-    return this.findOne(id);
+    const user = await this.findOne(id);
+    if (user.role === UserRole.STUDENT) {
+      throw new NotFoundException(`Staff user with ID ${id} not found.`);
+    }
+    return user;
   }
 
   async updateStaff(id: string, dto: UpdateStaffDto, adminId: string, ipAddress?: string) {
     const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) {
+    if (!user || user.role === UserRole.STUDENT) {
       throw new NotFoundException(`Staff user with ID ${id} not found.`);
     }
 
@@ -219,8 +225,8 @@ export class UsersService {
 
   async updateStaffStatus(id: string, isActive: boolean, adminId: string, ipAddress?: string) {
     const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found.`);
+    if (!user || user.role === UserRole.STUDENT) {
+      throw new NotFoundException(`Staff user with ID ${id} not found.`);
     }
 
     // Protection rule 1: Do not deactivate yourself
