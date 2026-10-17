@@ -155,6 +155,31 @@ export class ParentsService {
     return this.relationRepo.save(rel);
   }
 
+  async resetPassword(id: string) {
+    const parent = await this.findOne(id);
+    if (!parent.user) {
+      throw new NotFoundException('Associated user account not found for parent');
+    }
+    const tempPassword = generateTemporaryPassword(10);
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+    parent.user.passwordHash = passwordHash;
+    parent.user.mustChangePassword = true;
+    await this.userRepo.save(parent.user);
+
+    return {
+      message: 'Temporary credentials reset successfully',
+      parentCode: parent.user.username,
+      fullName: parent.user.fullName,
+      username: parent.user.username,
+      email: parent.user.email,
+      temporaryPassword: tempPassword,
+      linkedStudents: parent.studentRelationships?.map(
+        (r) => `${r.student?.fullName} (${r.student?.registrationNumber})`
+      ) || [],
+    };
+  }
+
   // --- Parent Portal Self Methods ---
 
   private async getParentByUserId(userId: string): Promise<ParentProfile> {

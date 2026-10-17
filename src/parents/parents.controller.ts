@@ -52,4 +52,12 @@ export class ParentsController {
   async linkStudent(@Param('id') id: string, @Body() dto: LinkStudentDto) {
     return this.parentsService.linkStudent(id, dto);
   }
+
+  @Post(':id/reset-password')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset parent credentials with temporary password (Admin only)' })
+  async resetPassword(@Param('id') id: string) {
+    return this.parentsService.resetPassword(id);
+  }
 }
