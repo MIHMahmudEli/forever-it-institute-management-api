@@ -247,11 +247,58 @@ export class GradebookService {
   }
 
   async getStudentGrades(studentId: string, offeringId?: string) {
+    // 1. Load student's active and completed enrollments with course, term, teacher
+    const enrollments = await this.enrollmentRepo.find({
+      where: {
+        studentId,
+        status: In([EnrollmentStatus.ACTIVE, EnrollmentStatus.COMPLETED]),
+      },
+      relations: {
+        offering: {
+          course: true,
+          term: true,
+          teacher: { user: true },
+        },
+      },
+    });
+
+    const courseMap = new Map<string, any>();
+    for (const enr of enrollments) {
+      const off = enr.offering;
+      if (!off) continue;
+      if (offeringId && off.id !== offeringId) continue;
+
+      const teacherName = off.teacher?.user?.fullName || 'AMINUN NAHAR';
+      const teacherId = off.teacher?.teacherId || '2309-2346-2';
+
+      courseMap.set(off.id, {
+        offeringId: off.id,
+        offeringCode: off.code,
+        courseName: off.course?.name || 'Course',
+        courseCode: off.course?.code || '',
+        section: off.section || 'A',
+        termName: off.term?.name || '2023-2024, Spring',
+        termCode: off.term?.code || '',
+        teacherName,
+        teacherId,
+        teacherDisplay: `${teacherName} [${teacherId}]`,
+        totalMark: 100,
+        passingMark: 50,
+        contributes: 100,
+        assessments: [],
+        totalScore: 0,
+      });
+    }
+
+    // 2. Query published grades
     const qb = this.gradeRepo
       .createQueryBuilder('grade')
       .innerJoinAndSelect('grade.assessment', 'assessment')
       .innerJoinAndSelect('assessment.offering', 'offering')
       .innerJoinAndSelect('offering.course', 'course')
+      .leftJoinAndSelect('offering.term', 'term')
+      .leftJoinAndSelect('offering.teacher', 'teacher')
+      .leftJoinAndSelect('teacher.user', 'teacherUser')
       .where('grade.studentId = :studentId', { studentId })
       .andWhere('grade.status = :status', { status: GradeStatus.PUBLISHED })
       .andWhere('assessment.isPublished = :isPub', { isPub: true })
@@ -263,15 +310,26 @@ export class GradebookService {
 
     const grades = await qb.getMany();
 
-    // Group by course offering
-    const courseMap = new Map<string, any>();
     for (const g of grades) {
       const offId = g.assessment.offering.id;
       if (!courseMap.has(offId)) {
+        const off = g.assessment.offering;
+        const teacherName = off.teacher?.user?.fullName || 'AMINUN NAHAR';
+        const teacherId = off.teacher?.teacherId || '2309-2346-2';
         courseMap.set(offId, {
           offeringId: offId,
-          offeringCode: g.assessment.offering.code,
-          courseName: g.assessment.offering.course.name,
+          offeringCode: off.code,
+          courseName: off.course?.name || 'Course',
+          courseCode: off.course?.code || '',
+          section: off.section || 'A',
+          termName: off.term?.name || '2023-2024, Spring',
+          termCode: off.term?.code || '',
+          teacherName,
+          teacherId,
+          teacherDisplay: `${teacherName} [${teacherId}]`,
+          totalMark: 100,
+          passingMark: 50,
+          contributes: 100,
           assessments: [],
           totalScore: 0,
         });
