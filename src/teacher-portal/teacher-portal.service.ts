@@ -17,6 +17,7 @@ import { GradebookService } from '../gradebook/gradebook.service.js';
 import { ChangePasswordDto } from '../users/dto/change-password.dto.js';
 import { CreateAssessmentDto, RecordGradesDto } from '../gradebook/dto/gradebook.dto.js';
 import { BulkMarkAttendanceDto } from '../attendance/dto/attendance.dto.js';
+import { CreateClassSessionDto } from '../class-sessions/dto/class-session.dto.js';
 
 @Injectable()
 export class TeacherPortalService {
@@ -235,15 +236,126 @@ export class TeacherPortalService {
     const teacher = await this.getTeacherByUserId(userId);
     const offering = await this.offeringRepo.findOne({
       where: { id: offeringId, teacherId: teacher.id },
+      relations: {
+        schedules: true,
+        course: true,
+      },
     });
     if (!offering) {
       throw new NotFoundException('Course offering not found or not assigned to you');
     }
 
-    return this.sessionRepo.find({
+    let sessions = await this.sessionRepo.find({
       where: { offeringId },
       order: { sessionNumber: 'ASC' },
     });
+
+    if (sessions.length === 0) {
+      sessions = await this.generateSessionsForOffering(offering);
+    }
+
+    return sessions;
+  }
+
+  async generateSessionsForOffering(offering: CourseOffering): Promise<ClassSession[]> {
+    const schedules = offering.schedules || [];
+    const createdSessions: ClassSession[] = [];
+
+    if (schedules.length > 0) {
+      const startDate = offering.startDate
+        ? new Date(offering.startDate + 'T00:00:00')
+        : new Date();
+      const endDate = offering.endDate
+        ? new Date(offering.endDate + 'T00:00:00')
+        : new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000); // 90 days
+
+      const currentDate = new Date(startDate);
+      let sessionNumber = 1;
+
+      while (currentDate <= endDate && sessionNumber <= 30) {
+        const dayOfWeek = currentDate.getDay();
+        const matchingSchedule = schedules.find((s) => s.dayOfWeek === dayOfWeek);
+
+        if (matchingSchedule) {
+          const dateStr = currentDate.toISOString().split('T')[0];
+          const newSession = this.sessionRepo.create({
+            offeringId: offering.id,
+            sessionNumber,
+            title: `${offering.course?.name || 'Class'} - Session #${sessionNumber}`,
+            sessionDate: dateStr,
+            startTime: matchingSchedule.startTime.substring(0, 5),
+            endTime: matchingSchedule.endTime.substring(0, 5),
+            classroom: matchingSchedule.classroom || offering.classroom || 'Lab 1',
+            status: ClassSessionStatus.SCHEDULED,
+            topic: null,
+          });
+          createdSessions.push(newSession);
+          sessionNumber++;
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    }
+
+    if (createdSessions.length === 0) {
+      const baseDate = offering.startDate
+        ? new Date(offering.startDate + 'T00:00:00')
+        : new Date();
+
+      for (let i = 1; i <= 12; i++) {
+        const d = new Date(baseDate.getTime() + (i - 1) * 7 * 24 * 60 * 60 * 1000);
+        const dateStr = d.toISOString().split('T')[0];
+        const newSession = this.sessionRepo.create({
+          offeringId: offering.id,
+          sessionNumber: i,
+          title: `${offering.course?.name || 'Class'} - Session #${i}`,
+          sessionDate: dateStr,
+          startTime: '10:00',
+          endTime: '12:00',
+          classroom: offering.classroom || 'Lab 1',
+          status: ClassSessionStatus.SCHEDULED,
+          topic: `Module ${i} Discussion & Lab Practice`,
+        });
+        createdSessions.push(newSession);
+      }
+    }
+
+    return this.sessionRepo.save(createdSessions);
+  }
+
+  async createCourseSession(
+    userId: string,
+    offeringId: string,
+    dto: CreateClassSessionDto,
+  ): Promise<ClassSession> {
+    const teacher = await this.getTeacherByUserId(userId);
+    const offering = await this.offeringRepo.findOne({
+      where: { id: offeringId, teacherId: teacher.id },
+      relations: { course: true },
+    });
+    if (!offering) {
+      throw new NotFoundException('Course offering not found or not assigned to you');
+    }
+
+    const maxSession = await this.sessionRepo.findOne({
+      where: { offeringId },
+      order: { sessionNumber: 'DESC' },
+    });
+    const nextNumber = (maxSession?.sessionNumber || 0) + 1;
+
+    const session = this.sessionRepo.create({
+      offeringId,
+      sessionNumber: nextNumber,
+      title: dto.title?.trim() || `${offering.course?.name || 'Class'} - Session #${nextNumber}`,
+      sessionDate: dto.sessionDate,
+      startTime: dto.startTime.substring(0, 5),
+      endTime: dto.endTime.substring(0, 5),
+      classroom: dto.classroom?.trim() || offering.classroom || 'Lab 1',
+      status: ClassSessionStatus.SCHEDULED,
+      topic: dto.topic?.trim() || null,
+    });
+
+    return this.sessionRepo.save(session);
   }
 
   async markSessionAttendance(

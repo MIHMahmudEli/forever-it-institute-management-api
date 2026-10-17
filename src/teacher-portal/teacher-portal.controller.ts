@@ -13,6 +13,7 @@ import { TeacherPortalService } from './teacher-portal.service.js';
 import { ChangePasswordDto } from '../users/dto/change-password.dto.js';
 import { CreateAssessmentDto, RecordGradesDto } from '../gradebook/dto/gradebook.dto.js';
 import { BulkMarkAttendanceDto } from '../attendance/dto/attendance.dto.js';
+import { CreateClassSessionDto } from '../class-sessions/dto/class-session.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import {
@@ -83,6 +84,16 @@ export class TeacherPortalController {
   @ApiOperation({ summary: 'Get class sessions for assigned offering' })
   async getCourseSessions(@CurrentUser('id') userId: string, @Param('id') id: string) {
     return this.teacherPortalService.getCourseSessions(userId, id);
+  }
+
+  @Post('courses/:id/sessions')
+  @ApiOperation({ summary: 'Create class session for assigned offering' })
+  async createCourseSession(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+    @Body() dto: CreateClassSessionDto,
+  ) {
+    return this.teacherPortalService.createCourseSession(userId, id, dto);
   }
 
   @Post('sessions/:sessionId/attendance')
