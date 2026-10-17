@@ -160,4 +160,38 @@ export class StudentPortalController {
   ) {
     return this.studentPortalService.cancelEnrollmentRequest(userId, enrollmentId);
   }
+
+  @Get('routine')
+  @ApiOperation({ summary: 'Get rolling 7-day visual routine (Today + next 6 days) in Asia/Dhaka timezone' })
+  async getRoutine(@CurrentUser('id') userId: string) {
+    return this.studentPortalService.getRollingRoutine(userId);
+  }
+
+  @Get('grades')
+  @ApiOperation({ summary: 'Get published academic grades and assessments' })
+  async getGrades(@CurrentUser('id') userId: string) {
+    return this.studentPortalService.getGrades(userId);
+  }
+
+  @Get('attendance')
+  @ApiOperation({ summary: 'Get student attendance percentage and session-by-session records' })
+  async getAttendance(@CurrentUser('id') userId: string) {
+    return this.studentPortalService.getAttendance(userId);
+  }
+
+  @Get('offerings')
+  @ApiOperation({ summary: 'Browse available course offerings for open-credit registration' })
+  async getAvailableOfferings(@CurrentUser('id') userId: string) {
+    return this.studentPortalService.getAvailableOfferings(userId);
+  }
+
+  @Post('offerings/:offeringId/register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Open-credit self-service course offering registration' })
+  async registerOffering(
+    @CurrentUser('id') userId: string,
+    @Param('offeringId') offeringId: string,
+  ) {
+    return this.studentPortalService.registerOffering(userId, offeringId);
+  }
 }

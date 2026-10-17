@@ -33,7 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload) {
     const user = await this.userRepository.findOne({
       where: { id: payload.sub, isActive: true },
-      relations: { student: true },
+      relations: { student: true, teacher: true, parent: true },
     });
 
     if (!user) {
@@ -48,7 +48,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: user.role,
       mustChangePassword: user.mustChangePassword,
       studentId: user.student?.id || null,
+      teacherId: user.teacher?.id || null,
+      parentId: user.parent?.id || null,
       student: user.student,
+      teacher: user.teacher,
+      parent: user.parent,
     };
   }
 }

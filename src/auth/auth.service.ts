@@ -21,6 +21,8 @@ export class AuthService {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.student', 'student')
+      .leftJoinAndSelect('user.teacher', 'teacher')
+      .leftJoinAndSelect('user.parent', 'parent')
       .where('LOWER(user.email) = :identifier OR LOWER(user.username) = :identifier', { identifier })
       .getOne();
 
@@ -44,7 +46,9 @@ export class AuthService {
       role: user.role,
       fullName: user.fullName,
       mustChangePassword: user.mustChangePassword,
-      studentId: user.student?.id,
+      studentId: user.student?.id || null,
+      teacherId: user.teacher?.id || null,
+      parentId: user.parent?.id || null,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -59,7 +63,9 @@ export class AuthService {
         role: user.role,
         mustChangePassword: user.mustChangePassword,
         studentId: user.student?.id || null,
-        registrationNumber: user.student?.registrationNumber || user.username || null,
+        teacherId: user.teacher?.id || null,
+        parentId: user.parent?.id || null,
+        registrationNumber: user.student?.registrationNumber || user.teacher?.teacherId || user.username || null,
       },
     };
   }
@@ -67,7 +73,7 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.userRepository.findOne({
       where: { id: userId, isActive: true },
-      relations: { student: true },
+      relations: { student: true, teacher: true, parent: true },
       select: {
         id: true,
         email: true,
@@ -94,7 +100,9 @@ export class AuthService {
       isActive: user.isActive,
       mustChangePassword: user.mustChangePassword,
       studentId: user.student?.id || null,
-      registrationNumber: user.student?.registrationNumber || user.username || null,
+      teacherId: user.teacher?.id || null,
+      parentId: user.parent?.id || null,
+      registrationNumber: user.student?.registrationNumber || user.teacher?.teacherId || user.username || null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

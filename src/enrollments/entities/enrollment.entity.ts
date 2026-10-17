@@ -36,6 +36,10 @@ export class Enrollment {
   @Column({ type: 'uuid' })
   courseId: string;
 
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  offeringId?: string | null;
+
   @Column({ type: 'date', default: () => 'CURRENT_DATE' })
   enrollmentDate: string;
 
@@ -65,6 +69,10 @@ export class Enrollment {
   @ManyToOne(() => Course, (course) => course.enrollments, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'courseId' })
   course: Relation<Course>;
+
+  @ManyToOne('CourseOffering', (offering: any) => offering.enrollments, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'offeringId' })
+  offering?: Relation<any> | null;
 
   @OneToMany(() => Payment, (payment) => payment.enrollment)
   payments: Relation<Payment>[];

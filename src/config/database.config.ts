@@ -8,9 +8,20 @@ import { AuditLog } from '../audit-logs/entities/audit-log.entity.js';
 import { DropRequest } from '../drop-requests/entities/drop-request.entity.js';
 import { Notification } from '../notifications/entities/notification.entity.js';
 import { PushSubscriptionEntity } from '../notifications/entities/push-subscription.entity.js';
+import { AcademicTerm } from '../academic-terms/entities/academic-term.entity.js';
+import { TeacherProfile } from '../teachers/entities/teacher.entity.js';
+import { ParentProfile } from '../parents/entities/parent.entity.js';
+import { ParentStudentRelationship } from '../parents/entities/parent-student-relationship.entity.js';
+import { CourseOffering } from '../course-offerings/entities/course-offering.entity.js';
+import { OfferingSchedule } from '../course-offerings/entities/offering-schedule.entity.js';
+import { ClassSession } from '../class-sessions/entities/class-session.entity.js';
+import { AttendanceRecord } from '../attendance/entities/attendance-record.entity.js';
+import { Assessment } from '../gradebook/entities/assessment.entity.js';
+import { Grade } from '../gradebook/entities/grade.entity.js';
 import { InitialSchema1710000000000 } from '../database/migrations/1710000000000-InitialSchema.js';
 import { StudentRoleAndDropRequests1710000001000 } from '../database/migrations/1710000001000-StudentRoleAndDropRequests.js';
 import { NotificationsAndPushSubscriptions1710000002000 } from '../database/migrations/1710000002000-NotificationsAndPushSubscriptions.js';
+import { AcademicManagementSystem1710000003000 } from '../database/migrations/1710000003000-AcademicManagementSystem.js';
 
 export class DatabaseConfigurationError extends Error {
   constructor(message: string) {
@@ -102,11 +113,22 @@ export function getDatabaseConfig(env: Record<string, string | undefined> = proc
     DropRequest,
     Notification,
     PushSubscriptionEntity,
+    AcademicTerm,
+    TeacherProfile,
+    ParentProfile,
+    ParentStudentRelationship,
+    CourseOffering,
+    OfferingSchedule,
+    ClassSession,
+    AttendanceRecord,
+    Assessment,
+    Grade,
   ];
   const migrations = [
     InitialSchema1710000000000,
     StudentRoleAndDropRequests1710000001000,
     NotificationsAndPushSubscriptions1710000002000,
+    AcademicManagementSystem1710000003000,
   ];
 
   if (databaseUrl) {

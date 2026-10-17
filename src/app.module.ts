@@ -22,6 +22,14 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
 import { DropRequestsModule } from './drop-requests/drop-requests.module.js';
 import { StudentPortalModule } from './student-portal/student-portal.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { AcademicTermsModule } from './academic-terms/academic-terms.module.js';
+import { TeachersModule } from './teachers/teachers.module.js';
+import { TimetableModule } from './timetable/timetable.module.js';
+import { CourseOfferingsModule } from './course-offerings/course-offerings.module.js';
+import { AttendanceModule } from './attendance/attendance.module.js';
+import { GradebookModule } from './gradebook/gradebook.module.js';
+import { TeacherPortalModule } from './teacher-portal/teacher-portal.module.js';
+import { ParentsModule } from './parents/parents.module.js';
 
 @Module({
   imports: [
@@ -54,6 +62,14 @@ import { NotificationsModule } from './notifications/notifications.module.js';
     DropRequestsModule,
     StudentPortalModule,
     NotificationsModule,
+    AcademicTermsModule,
+    TeachersModule,
+    TimetableModule,
+    CourseOfferingsModule,
+    AttendanceModule,
+    GradebookModule,
+    TeacherPortalModule,
+    ParentsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -23,6 +23,10 @@ import {
 import { ChangePasswordDto } from '../users/dto/change-password.dto.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { NotificationType } from '../notifications/entities/notification.entity.js';
+import { ClassSession } from '../class-sessions/entities/class-session.entity.js';
+import { AttendanceService } from '../attendance/attendance.service.js';
+import { GradebookService } from '../gradebook/gradebook.service.js';
+import { CourseOfferingsService } from '../course-offerings/course-offerings.service.js';
 
 @Injectable()
 export class StudentPortalService {
@@ -41,6 +45,11 @@ export class StudentPortalService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Course)
     private readonly courseRepository: Repository<Course>,
+    @InjectRepository(ClassSession)
+    private readonly sessionRepository: Repository<ClassSession>,
+    private readonly attendanceService: AttendanceService,
+    private readonly gradebookService: GradebookService,
+    private readonly offeringsService: CourseOfferingsService,
     private readonly dataSource: DataSource,
     private readonly notificationsService: NotificationsService,
   ) {}
@@ -576,5 +585,154 @@ export class StudentPortalService {
       success: true,
       message: `Enrollment request for "${enrollment.course?.name || 'course'}" has been cancelled.`,
     };
+  }
+
+  /**
+   * Rolling 7-day visual student routine (Today + next 6 days) in Asia/Dhaka timezone
+   */
+  async getRollingRoutine(userId: string) {
+    const student = await this.getStudentByUserId(userId);
+
+    // Active enrollments with offerings and schedules
+    const enrollments = await this.enrollmentRepository.find({
+      where: {
+        studentId: student.id,
+        status: In([EnrollmentStatus.ACTIVE, EnrollmentStatus.COMPLETED]),
+      },
+      relations: {
+        course: true,
+        offering: {
+          schedules: true,
+          teacher: { user: true },
+        },
+      },
+    });
+
+    const offeringIds = enrollments.map((e) => e.offeringId).filter(Boolean) as string[];
+
+    // Calculate Asia/Dhaka current date (UTC+6)
+    const now = new Date();
+    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
+    const dhakaNow = new Date(utcTime + 6 * 3600000);
+
+    const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    const days: any[] = [];
+
+    // Rolling 7 days: day offset 0 through 6
+    for (let i = 0; i < 7; i++) {
+      const targetDate = new Date(dhakaNow.getTime() + i * 86400000);
+      const yyyy = targetDate.getFullYear();
+      const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(targetDate.getDate()).padStart(2, '0');
+      const dateString = `${yyyy}-${mm}-${dd}`;
+      const dayOfWeek = targetDate.getDay(); // 0..6
+      const dayName = dayNames[dayOfWeek];
+
+      // Find sessions scheduled on this exact date if offeringIds exist
+      let sessionsOnDate: ClassSession[] = [];
+      if (offeringIds.length > 0) {
+        sessionsOnDate = await this.sessionRepository.find({
+          where: {
+            offeringId: In(offeringIds),
+            sessionDate: dateString,
+          },
+          relations: {
+            offering: {
+              course: true,
+              teacher: { user: true },
+            },
+            attendanceRecords: true,
+          },
+          order: { startTime: 'ASC' },
+        });
+      }
+
+      // If explicit class sessions exist for this date, use them
+      const classes: any[] = [];
+      if (sessionsOnDate.length > 0) {
+        for (const ses of sessionsOnDate) {
+          const studentAtt = (ses.attendanceRecords || []).find((a) => a.studentId === student.id);
+          classes.push({
+            sessionId: ses.id,
+            sessionNumber: ses.sessionNumber,
+            sessionTitle: ses.title,
+            offeringId: ses.offeringId,
+            offeringCode: ses.offering?.code || '',
+            courseName: ses.offering?.course?.name || 'Class',
+            section: ses.offering?.section || '',
+            classroom: ses.classroom || ses.offering?.classroom || 'Classroom',
+            teacherName: ses.offering?.teacher?.user?.fullName || 'Assigned Instructor',
+            startTime: ses.startTime.substring(0, 5),
+            endTime: ses.endTime.substring(0, 5),
+            topic: ses.topic || null,
+            status: ses.status,
+            attendanceStatus: studentAtt ? studentAtt.status : null,
+          });
+        }
+      } else {
+        // Fallback: match weekly schedules from enrolled offerings for this day of week
+        for (const enr of enrollments) {
+          if (!enr.offering || !enr.offering.schedules) continue;
+          for (const sch of enr.offering.schedules) {
+            if (sch.dayOfWeek === dayOfWeek) {
+              classes.push({
+                sessionId: null,
+                sessionNumber: null,
+                sessionTitle: `${enr.course.name} - Regular Class`,
+                offeringId: enr.offering.id,
+                offeringCode: enr.offering.code,
+                courseName: enr.course.name,
+                section: enr.offering.section,
+                classroom: sch.classroom || enr.offering.classroom || 'Classroom',
+                teacherName: enr.offering.teacher?.user?.fullName || 'Assigned Instructor',
+                startTime: sch.startTime.substring(0, 5),
+                endTime: sch.endTime.substring(0, 5),
+                topic: null,
+                status: 'SCHEDULED',
+                attendanceStatus: null,
+              });
+            }
+          }
+        }
+      }
+
+      classes.sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+      days.push({
+        date: dateString,
+        dayOfWeek,
+        dayName,
+        isToday: i === 0,
+        dayOffset: i,
+        classesCount: classes.length,
+        classes,
+      });
+    }
+
+    return {
+      studentId: student.id,
+      timezone: 'Asia/Dhaka',
+      rollingWindow: days,
+    };
+  }
+
+  async getGrades(userId: string, offeringId?: string) {
+    const student = await this.getStudentByUserId(userId);
+    return this.gradebookService.getStudentGrades(student.id, offeringId);
+  }
+
+  async getAttendance(userId: string, offeringId?: string) {
+    const student = await this.getStudentByUserId(userId);
+    return this.attendanceService.getStudentAttendanceReport(student.id, offeringId);
+  }
+
+  async registerOffering(userId: string, offeringId: string) {
+    const student = await this.getStudentByUserId(userId);
+    return this.offeringsService.registerStudent(student.id, offeringId);
+  }
+
+  async getAvailableOfferings(userId: string, termId?: string) {
+    const student = await this.getStudentByUserId(userId);
+    return this.offeringsService.getAvailableForStudent(student.id, termId);
   }
 }

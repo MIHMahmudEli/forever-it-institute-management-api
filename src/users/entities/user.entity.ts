@@ -14,6 +14,8 @@ export enum UserRole {
   ADMIN = 'ADMIN',
   STAFF = 'STAFF',
   STUDENT = 'STUDENT',
+  TEACHER = 'TEACHER',
+  PARENT = 'PARENT',
   VIEWER = 'VIEWER',
 }
 
@@ -48,8 +50,14 @@ export class User {
   @Column({ type: 'boolean', default: false })
   mustChangePassword: boolean;
 
-  @OneToOne('Student', (student: Student) => student.user)
+  @OneToOne('Student', (student: any) => student.user)
   student?: Relation<Student> | null;
+
+  @OneToOne('TeacherProfile', (teacher: any) => teacher.user)
+  teacher?: Relation<any> | null;
+
+  @OneToOne('ParentProfile', (parent: any) => parent.user)
+  parent?: Relation<any> | null;
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;
