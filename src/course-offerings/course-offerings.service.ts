@@ -290,15 +290,26 @@ export class CourseOfferingsService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      // 1. Lock offering row with pessimistic write lock
-      const offering = await manager
+      // 1. Lock offering row with pessimistic write lock (single row, no outer joins to avoid Postgres FOR UPDATE error)
+      const lockedOffering = await manager
         .createQueryBuilder(CourseOffering, 'offering')
         .setLock('pessimistic_write')
-        .leftJoinAndSelect('offering.course', 'course')
-        .leftJoinAndSelect('offering.term', 'term')
-        .leftJoinAndSelect('offering.schedules', 'schedules')
         .where('offering.id = :id', { id: offeringId })
         .getOne();
+
+      if (!lockedOffering) {
+        throw new NotFoundException('Course offering not found');
+      }
+
+      // Load full offering with relations inside the locked transaction
+      const offering = await manager.findOne(CourseOffering, {
+        where: { id: offeringId },
+        relations: {
+          course: true,
+          term: true,
+          schedules: true,
+        },
+      });
 
       if (!offering) {
         throw new NotFoundException('Course offering not found');
@@ -313,12 +324,12 @@ export class CourseOfferingsService {
 
       // Check registration period
       const today = new Date().toISOString().split('T')[0];
-      if (offering.term.registrationStartDate && today < offering.term.registrationStartDate) {
+      if (offering.term?.registrationStartDate && today < offering.term.registrationStartDate) {
         throw new BadRequestException(
           `Course registration for ${offering.term.name} opens on ${offering.term.registrationStartDate}`,
         );
       }
-      if (offering.term.registrationEndDate && today > offering.term.registrationEndDate) {
+      if (offering.term?.registrationEndDate && today > offering.term.registrationEndDate) {
         throw new BadRequestException(
           `Course registration for ${offering.term.name} closed on ${offering.term.registrationEndDate}`,
         );
@@ -353,7 +364,7 @@ export class CourseOfferingsService {
       }
 
       // 5. Create Enrollment
-      const fee = offering.feeOverride != null ? Number(offering.feeOverride) : Number(offering.course.totalFee);
+      const fee = offering.feeOverride != null ? Number(offering.feeOverride) : Number(offering.course?.totalFee || 0);
       const enrollment = manager.create(Enrollment, {
         studentId,
         courseId: offering.courseId,
@@ -377,7 +388,7 @@ export class CourseOfferingsService {
         try {
           await this.notificationsService.sendToUser(student.userId, {
             title: 'Course Registration Confirmed',
-            message: `Successfully registered for ${offering.course.name} (${offering.code}). Check your visual routine!`,
+            message: `Successfully registered for ${offering.course?.name || 'Course'} (${offering.code}). Check your visual routine!`,
             link: '/student/routine',
           });
         } catch (e) {
